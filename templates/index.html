@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — VPNTunel{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}{{ hari_ini }}{% endblock %}
+
+{% block content %}
+
+<!-- Stat Cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+  <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-indigo-200 text-xs font-semibold uppercase tracking-wide">Pelanggan Aktif</span>
+      <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+        <i class="fa-solid fa-users text-sm"></i>
+      </div>
+    </div>
+    <div class="text-3xl font-bold">{{ stats.total }}</div>
+    <div class="text-indigo-200 text-xs mt-1">{{ stats.nonaktif }} nonaktif</div>
+  </div>
+
+  <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-emerald-200 text-xs font-semibold uppercase tracking-wide">Sudah Bayar</span>
+      <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+        <i class="fa-solid fa-circle-check text-sm"></i>
+      </div>
+    </div>
+    <div class="text-3xl font-bold">{{ stats.lunas }}</div>
+    <div class="text-emerald-200 text-xs mt-1">dari {{ stats.total }} pelanggan</div>
+  </div>
+
+  <div class="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-rose-200 text-xs font-semibold uppercase tracking-wide">Belum Bayar</span>
+      <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+        <i class="fa-solid fa-clock text-sm"></i>
+      </div>
+    </div>
+    <div class="text-3xl font-bold">{{ stats.belum }}</div>
+    <div class="text-rose-200 text-xs mt-1">bulan {{ bulan }}</div>
+  </div>
+
+  <div class="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-amber-100 text-xs font-semibold uppercase tracking-wide">Omzet Bulan Ini</span>
+      <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+        <i class="fa-solid fa-sack-dollar text-sm"></i>
+      </div>
+    </div>
+    <div class="text-2xl font-bold">{{ format_rupiah(stats.omzet) }}</div>
+    <div class="text-amber-100 text-xs mt-1">target {{ format_rupiah(stats.target) }}</div>
+  </div>
+
+</div>
+
+<!-- Row 2 -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+
+  <!-- Progress pembayaran -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+    <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
+      <i class="fa-solid fa-chart-pie text-indigo-500"></i> Progress Tagihan {{ bulan }}
+    </h3>
+    {% if stats.total > 0 %}
+    {% set pct = ((stats.lunas / stats.total) * 100) | int %}
+    <div class="flex items-end gap-3 mb-3">
+      <span class="text-4xl font-bold text-gray-800">{{ pct }}%</span>
+      <span class="text-sm text-gray-400 mb-1">terkumpul</span>
+    </div>
+    <div class="w-full bg-gray-100 rounded-full h-3 mb-3">
+      <div class="bg-gradient-to-r from-indigo-500 to-emerald-500 h-3 rounded-full transition-all" style="width: {{ pct }}%"></div>
+    </div>
+    <div class="flex justify-between text-xs text-gray-500">
+      <span><span class="text-emerald-600 font-semibold">{{ stats.lunas }}</span> lunas</span>
+      <span><span class="text-rose-500 font-semibold">{{ stats.belum }}</span> belum</span>
+    </div>
+    {% else %}
+    <p class="text-gray-400 text-sm text-center py-4">Belum ada pelanggan.</p>
+    {% endif %}
+  </div>
+
+  <!-- Protokol -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+    <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
+      <i class="fa-solid fa-network-wired text-purple-500"></i> Distribusi Protokol
+    </h3>
+    <div class="space-y-3">
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="font-medium text-gray-700"><i class="fa-solid fa-shield-halved text-purple-500 mr-1"></i> WireGuard</span>
+          <span class="font-bold text-purple-600">{{ stats.wg_count }}</span>
+        </div>
+        {% if stats.total > 0 %}
+        <div class="w-full bg-gray-100 rounded-full h-2">
+          <div class="bg-purple-500 h-2 rounded-full" style="width: {{ ((stats.wg_count / stats.total) * 100) | int if stats.total > 0 else 0 }}%"></div>
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="font-medium text-gray-700"><i class="fa-solid fa-lock text-blue-500 mr-1"></i> L2TP/IPSec</span>
+          <span class="font-bold text-blue-600">{{ stats.l2tp_count }}</span>
+        </div>
+        {% if stats.total > 0 %}
+        <div class="w-full bg-gray-100 rounded-full h-2">
+          <div class="bg-blue-500 h-2 rounded-full" style="width: {{ ((stats.l2tp_count / stats.total) * 100) | int if stats.total > 0 else 0 }}%"></div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
+      Total {{ stats.total }} pelanggan aktif
+    </div>
+  </div>
+
+  <!-- Aksi cepat -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+    <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
+      <i class="fa-solid fa-bolt text-amber-500"></i> Aksi Cepat
+    </h3>
+    <div class="space-y-2">
+      <a href="/tambah" class="flex items-center gap-3 p-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition text-sm font-medium text-indigo-700">
+        <i class="fa-solid fa-user-plus w-5 text-center"></i> Tambah Pelanggan Baru
+      </a>
+      <a href="/pelanggan" class="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition text-sm font-medium text-gray-700">
+        <i class="fa-solid fa-users w-5 text-center text-gray-500"></i> Kelola Pelanggan
+      </a>
+      <a href="/tagihan" class="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition text-sm font-medium text-emerald-700">
+        <i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Tagihan Bulan Ini
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Jatuh Tempo + Pelanggan Baru -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+  <!-- Jatuh Tempo Hari Ini -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-gray-700 flex items-center gap-2">
+        <i class="fa-solid fa-calendar-day text-rose-500"></i> Jatuh Tempo Hari Ini
+      </h3>
+      {% if jatuh_tempo %}
+      <span class="bg-rose-100 text-rose-600 text-xs font-bold px-2 py-0.5 rounded-full">{{ jatuh_tempo | length }}</span>
+      {% endif %}
+    </div>
+    {% if jatuh_tempo %}
+    <div class="divide-y divide-slate-100">
+      {% for p in jatuh_tempo %}
+      <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-50">
+        <div>
+          <p class="text-sm font-semibold text-gray-800">{{ p.nama }}</p>
+          <p class="text-xs text-gray-400 font-mono">{{ p.subdomain }}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-bold text-gray-700">{{ format_rupiah(p.harga) }}</span>
+          {% if p.lunas %}
+          <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">Lunas</span>
+          {% else %}
+          <button onclick="bayarCepat('{{ p.id }}','{{ bulan }}')"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+            Tandai Lunas
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-5 py-10 text-center">
+      <i class="fa-solid fa-circle-check text-3xl text-emerald-300 mb-2"></i>
+      <p class="text-gray-400 text-sm">Tidak ada jatuh tempo hari ini</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Pelanggan Terbaru -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-gray-700 flex items-center gap-2">
+        <i class="fa-solid fa-user-clock text-indigo-500"></i> Pelanggan Terbaru
+      </h3>
+      <a href="/pelanggan" class="text-xs text-indigo-600 hover:underline">Lihat semua →</a>
+    </div>
+    {% if stats.recent %}
+    <div class="divide-y divide-slate-100">
+      {% for r in stats.recent %}
+      <div class="px-5 py-3 flex items-center gap-3 hover:bg-slate-50">
+        <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm flex-shrink-0">
+          {{ r.nama[0] | upper }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-gray-800 truncate">{{ r.nama }}</p>
+          <p class="text-xs text-gray-400 font-mono truncate">{{ r.subdomain }}</p>
+        </div>
+        {% if r.protocol == 'wireguard' %}
+        <span class="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">WG</span>
+        {% else %}
+        <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">L2TP</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-5 py-10 text-center">
+      <i class="fa-solid fa-users text-3xl text-slate-300 mb-2"></i>
+      <p class="text-gray-400 text-sm">Belum ada pelanggan</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+async function bayarCepat(pid, bulan) {
+  if (!confirm('Tandai lunas ' + bulan + '?')) return;
+  const fd = new FormData(); fd.append('bulan', bulan);
+  const r = await fetch('/bayar/' + pid, {method: 'POST', body: fd});
+  const j = await r.json();
+  if (j.ok) location.reload(); else alert(j.msg);
+}
+</script>
+{% endblock %}

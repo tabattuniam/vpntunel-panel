@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Config — {{ p.subdomain }}{% endblock %}
+{% block page_title %}Config VPN{% endblock %}
+{% block page_subtitle %}{{ p.nama }} — {{ p.subdomain }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-2 text-sm text-gray-400 mb-5">
+  <a href="/pelanggan" class="hover:text-indigo-600 transition">Pelanggan</a>
+  <i class="fa-solid fa-chevron-right text-xs"></i>
+  <a href="/pelanggan/{{ p.id }}" class="hover:text-indigo-600 transition">{{ p.nama }}</a>
+  <i class="fa-solid fa-chevron-right text-xs"></i>
+  <span class="text-gray-700">Config</span>
+</div>
+
+<div class="max-w-2xl mx-auto space-y-5">
+
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+      <div><span class="text-gray-400">Nama:</span> <span class="font-semibold text-gray-800">{{ p.nama }}</span></div>
+      <div><span class="text-gray-400">Paket:</span> <span class="font-semibold text-gray-800">{{ p.paket }}</span></div>
+      <div><span class="text-gray-400">Protokol:</span>
+        {% if (p.protocol or 'wireguard') == 'wireguard' %}
+        <span class="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full">WireGuard</span>
+        {% else %}
+        <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">L2TP</span>
+        {% endif %}
+      </div>
+      <div><span class="text-gray-400">PIN:</span> <span class="font-mono font-bold text-gray-800 bg-slate-100 px-2 py-0.5 rounded">{{ p.pin }}</span></div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-gray-700 flex items-center gap-2 text-sm">
+        <i class="fa-solid fa-terminal text-slate-500"></i> Script MikroTik
+      </h3>
+      <button onclick="copyScript()"
+        class="flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-gray-700 px-3 py-1.5 rounded-lg transition font-medium">
+        <i class="fa-solid fa-copy"></i> Copy
+      </button>
+    </div>
+    <pre id="script-box" class="bg-slate-900 text-green-400 text-xs p-4 rounded-xl overflow-x-auto leading-relaxed whitespace-pre-wrap">{{ script }}</pre>
+  </div>
+
+  <button onclick="kirimWA('{{ p.id }}')" id="btn-wa"
+    class="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl transition">
+    <i class="fa-brands fa-whatsapp"></i> Kirim Script ke WA Pelanggan
+  </button>
+</div>
+
+<script>
+function copyScript() {
+  navigator.clipboard.writeText(document.getElementById('script-box').textContent.trim());
+  event.currentTarget.innerHTML = '<i class="fa-solid fa-check"></i> Disalin!';
+  setTimeout(() => event.currentTarget.innerHTML = '<i class="fa-solid fa-copy"></i> Copy', 2000);
+}
+async function kirimWA(pid) {
+  const btn = document.getElementById('btn-wa');
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...';
+  const r = await fetch('/kirim-config/'+pid, {method:'POST'});
+  const j = await r.json();
+  btn.innerHTML = '<i class="fa-brands fa-whatsapp"></i> ' + j.msg;
+  setTimeout(() => btn.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Kirim Script ke WA Pelanggan', 3000);
+}
+</script>
+{% endblock %}

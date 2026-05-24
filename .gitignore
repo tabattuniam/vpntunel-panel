@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/
+*.db
+*.sqlite3
+configs/panel.yaml
+*.log
+.DS_Store
+chap-secrets
+wg0.conf

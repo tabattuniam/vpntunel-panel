@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Tagihan — VPNTunel{% endblock %}
+{% block page_title %}Tagihan Bulanan{% endblock %}
+{% block page_subtitle %}Rekap pembayaran pelanggan{% endblock %}
+
+{% block content %}
+
+<!-- Filter Bulan -->
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+  <div>
+    <p class="text-sm font-semibold text-gray-700">Periode Tagihan</p>
+    <p class="text-xs text-gray-400">Bulan: <span class="font-mono font-bold text-indigo-600">{{ bulan }}</span></p>
+  </div>
+  <form method="get" action="/tagihan" class="flex items-center gap-2">
+    <input type="month" name="bulan" value="{{ bulan }}"
+      class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
+      <i class="fa-solid fa-filter mr-1"></i> Tampilkan
+    </button>
+  </form>
+</div>
+
+<!-- Stat Cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+  <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-4 text-white shadow">
+    <div class="text-indigo-200 text-xs font-semibold mb-2">Total Pelanggan</div>
+    <div class="text-3xl font-bold">{{ stats.total }}</div>
+  </div>
+  <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-4 text-white shadow">
+    <div class="text-emerald-200 text-xs font-semibold mb-2">Sudah Lunas</div>
+    <div class="text-3xl font-bold">{{ stats.lunas }}</div>
+  </div>
+  <div class="bg-gradient-to-br from-rose-500 to-rose-600 rounded-2xl p-4 text-white shadow">
+    <div class="text-rose-200 text-xs font-semibold mb-2">Belum Bayar</div>
+    <div class="text-3xl font-bold">{{ stats.belum }}</div>
+  </div>
+  <div class="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-4 text-white shadow">
+    <div class="text-amber-100 text-xs font-semibold mb-2">Omzet Terkumpul</div>
+    {% set omzet = namespace(val=0) %}
+    {% for r in rows %}{% if r.lunas %}{% set omzet.val = omzet.val + r.harga %}{% endif %}{% endfor %}
+    <div class="text-xl font-bold">{{ format_rupiah(omzet.val) }}</div>
+  </div>
+</div>
+
+<!-- Tabel -->
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+    <h3 class="font-bold text-gray-700 flex items-center gap-2">
+      <i class="fa-solid fa-list-check text-indigo-500"></i> Daftar Tagihan
+    </h3>
+    <span class="text-xs text-gray-400">{{ bulan }}</span>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wide text-left">
+          <th class="px-5 py-3.5">Pelanggan</th>
+          <th class="px-5 py-3.5">Paket</th>
+          <th class="px-5 py-3.5 text-right">Tagihan</th>
+          <th class="px-5 py-3.5 text-center">Tgl</th>
+          <th class="px-5 py-3.5 text-center">Status</th>
+          <th class="px-5 py-3.5 text-center">Tgl Lunas</th>
+          <th class="px-5 py-3.5 text-center">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs flex-shrink-0">
+                {{ r.nama[0] | upper }}
+              </div>
+              <div>
+                <p class="font-semibold text-gray-800">{{ r.nama }}</p>
+                <p class="text-xs text-gray-400 font-mono">{{ r.subdomain }}</p>
+              </div>
+            </div>
+          </td>
+          <td class="px-5 py-3.5 text-gray-600">{{ r.paket }}</td>
+          <td class="px-5 py-3.5 text-right font-bold text-gray-800">{{ format_rupiah(r.harga) }}</td>
+          <td class="px-5 py-3.5 text-center">
+            <span class="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">{{ r.tanggal_bayar }}</span>
+          </td>
+          <td class="px-5 py-3.5 text-center">
+            {% if r.lunas %}
+            <span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
+              <i class="fa-solid fa-check text-xs"></i> Lunas
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 bg-rose-100 text-rose-600 text-xs font-bold px-2.5 py-1 rounded-full">
+              <i class="fa-solid fa-xmark text-xs"></i> Belum
+            </span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3.5 text-center text-xs text-gray-400">
+            {{ r.tanggal_lunas or '—' }}
+          </td>
+          <td class="px-5 py-3.5 text-center">
+            {% if not r.lunas %}
+            <button onclick="bayar('{{ r.id }}','{{ bulan }}')"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+              <i class="fa-solid fa-check mr-1"></i>Lunas
+            </button>
+            {% else %}
+            <span class="text-gray-300 text-xs">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="px-5 py-12 text-center text-gray-400">
+            <i class="fa-solid fa-file-invoice text-3xl text-slate-300 mb-3 block"></i>
+            Tidak ada data untuk bulan ini.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+async function bayar(pid, bulan) {
+  if (!confirm('Tandai lunas ' + bulan + '?')) return;
+  const fd = new FormData(); fd.append('bulan', bulan);
+  const r = await fetch('/bayar/'+pid, {method:'POST', body:fd});
+  const j = await r.json();
+  if (j.ok) location.reload(); else alert(j.msg);
+}
+</script>
+{% endblock %}

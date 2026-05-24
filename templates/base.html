@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}VPNTunel Panel{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    [x-cloak]{display:none}
+    .sidebar-link.active { background: rgba(255,255,255,0.15); }
+    .sidebar-link:hover  { background: rgba(255,255,255,0.1); }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex">
+
+  <!-- ════ SIDEBAR ════ -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white flex flex-col shadow-xl transition-transform duration-300 -translate-x-full lg:translate-x-0">
+
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+      <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+        <i class="fa-solid fa-bolt text-white text-sm"></i>
+      </div>
+      <div>
+        <div class="font-bold text-sm leading-tight">VPNTunel</div>
+        <div class="text-indigo-300 text-xs">Admin Panel</div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <p class="text-indigo-400 text-xs font-semibold px-3 mb-2 tracking-widest">MENU</p>
+
+      <a href="/" class="sidebar-link {% if request.url.path == '/' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+        <i class="fa-solid fa-gauge-high w-5 text-center"></i> Dashboard
+      </a>
+      <a href="/tambah" class="sidebar-link {% if request.url.path == '/tambah' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+        <i class="fa-solid fa-user-plus w-5 text-center"></i> Tambah Pelanggan
+      </a>
+      <a href="/pelanggan" class="sidebar-link {% if request.url.path == '/pelanggan' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+        <i class="fa-solid fa-users w-5 text-center"></i> Pelanggan
+      </a>
+      <a href="/tagihan" class="sidebar-link {% if request.url.path == '/tagihan' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+        <i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Tagihan
+      </a>
+
+      <p class="text-indigo-400 text-xs font-semibold px-3 mb-2 mt-4 tracking-widest">SERVER</p>
+      <a href="http://127.0.0.1:7500" target="_blank" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+        <i class="fa-solid fa-server w-5 text-center"></i> FRP Dashboard
+        <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto text-indigo-400"></i>
+      </a>
+    </nav>
+
+    <!-- User -->
+    <div class="px-4 py-4 border-t border-white/10">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-xs font-bold">A</div>
+          <div>
+            <div class="text-sm font-semibold">Admin</div>
+            <div class="text-indigo-300 text-xs">vpntunel.my.id</div>
+          </div>
+        </div>
+        <a href="/logout" class="text-indigo-300 hover:text-white transition" title="Keluar">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════ MAIN ════ -->
+  <div class="flex-1 lg:ml-64 flex flex-col min-h-screen">
+
+    <!-- Top bar -->
+    <header class="bg-white border-b border-slate-200 px-4 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+      <div class="flex items-center gap-3">
+        <!-- Hamburger -->
+        <button onclick="toggleSidebar()" class="lg:hidden text-gray-500 hover:text-gray-700">
+          <i class="fa-solid fa-bars text-lg"></i>
+        </button>
+        <div>
+          <h1 class="text-base font-bold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h1>
+          <p class="text-xs text-gray-400">{% block page_subtitle %}VPNTunel Admin{% endblock %}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/tambah" class="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+          <i class="fa-solid fa-plus"></i> Tambah
+        </a>
+        <div class="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-sm">A</div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 px-4 lg:px-8 py-6">
+      {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-gray-400 py-4 border-t border-slate-200">
+      VPNTunel Admin Panel &copy; 2024
+    </footer>
+  </div>
+
+  <!-- Overlay mobile -->
+  <div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/40 z-40 hidden lg:hidden"></div>
+
+<script>
+function toggleSidebar() {
+  const s = document.getElementById('sidebar');
+  const o = document.getElementById('overlay');
+  s.classList.toggle('-translate-x-full');
+  o.classList.toggle('hidden');
+}
+</script>
+</body>
+</html>

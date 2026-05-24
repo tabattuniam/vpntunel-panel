@@ -1,0 +1,37 @@
+frp:
+  server_addr: "IP_SERVER_ANDA"
+  server_port: 7000
+  token: "FRP_TOKEN_ANDA"
+  dashboard_url: "http://127.0.0.1:7500"
+  dashboard_user: "admin"
+  dashboard_password: "FRP_DASHBOARD_PASSWORD"
+  subdomain_host: "domain.anda.com"
+  port_range_start: 10000
+  port_range_end: 20000
+
+wuzapi:
+  url: "http://127.0.0.1:8080"
+  token: "WUZAPI_TOKEN_ANDA"
+
+admin_wa: "628xxxxxxxxxx"
+
+paket:
+  - name: "Basic"
+    ports: 1
+    harga: 10000
+  - name: "Standard"
+    ports: 3
+    harga: 20000
+  - name: "Premium"
+    ports: 5
+    harga: 30000
+
+midtrans:
+  server_key: "Mid-server-GANTI_INI"
+  client_key: "Mid-client-GANTI_INI"
+  is_production: false
+
+app:
+  secret_key: "SECRET_KEY_PANJANG_ANDA"
+  port: 8092
+  name: "VPNTunel Panel"
