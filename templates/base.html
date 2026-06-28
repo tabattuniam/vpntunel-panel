@@ -1,117 +1,197 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}VPNTunel Panel{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}VPNTunel Admin{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style type="text/tailwindcss">
+  @layer base { * { font-family: 'Inter', sans-serif; } }
+  @layer components {
+    .nav-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white text-sm font-medium transition-all cursor-pointer; }
+    .nav-link:hover { background: rgba(255,255,255,0.07); }
+    .nav-link.active { @apply bg-violet-600 text-white shadow-lg; }
+    .sub-link { @apply flex items-center gap-2 pl-9 pr-3 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-medium transition-all cursor-pointer; }
+    .sub-link:hover { background: rgba(255,255,255,0.07); }
+    .sub-link.active { @apply bg-violet-700 text-white; }
+    .card { @apply bg-white rounded-2xl border border-gray-100 shadow-sm; }
+    .btn { @apply inline-flex items-center gap-2 font-semibold rounded-xl text-sm transition-all cursor-pointer; }
+    .btn-primary { @apply btn bg-violet-600 hover:bg-violet-700 text-white shadow-sm; }
+    .btn-ghost { @apply btn bg-gray-100 hover:bg-gray-200 text-gray-700; }
+    .btn-danger { @apply btn bg-red-50 hover:bg-red-100 text-red-600; }
+    .btn-success { @apply btn bg-emerald-50 hover:bg-emerald-100 text-emerald-700; }
+    .form-input { @apply w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white transition-all; }
+    .form-label { @apply block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5; }
+    .badge { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold; }
+    .badge-green  { @apply badge bg-emerald-50 text-emerald-700 border border-emerald-100; }
+    .badge-red    { @apply badge bg-red-50 text-red-600 border border-red-100; }
+    .badge-blue   { @apply badge bg-blue-50 text-blue-700 border border-blue-100; }
+    .badge-orange { @apply badge bg-orange-50 text-orange-700 border border-orange-100; }
+    .badge-gray   { @apply badge bg-gray-100 text-gray-500 border border-gray-200; }
+    .badge-purple { @apply badge bg-violet-50 text-violet-700 border border-violet-100; }
+    .th { @apply text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50; }
+    .td { @apply px-5 py-3.5 border-b border-gray-50 text-sm; }
+    .page-title { @apply text-xl font-bold text-gray-900; }
+    .page-sub   { @apply text-sm text-gray-400 mt-0.5; }
     [x-cloak]{display:none}
-    .sidebar-link.active { background: rgba(255,255,255,0.15); }
-    .sidebar-link:hover  { background: rgba(255,255,255,0.1); }
-  </style>
+  }
+</style>
 </head>
-<body class="bg-slate-100 min-h-screen flex">
+<body class="bg-gray-50 min-h-screen">
+<div class="flex min-h-screen">
 
-  <!-- ════ SIDEBAR ════ -->
-  <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white flex flex-col shadow-xl transition-transform duration-300 -translate-x-full lg:translate-x-0">
+  <!-- Sidebar (replika admin-web supaya UX konsisten) -->
+  <aside id="sidebar" class="w-60 flex-shrink-0 fixed top-0 left-0 h-full z-30 flex flex-col -translate-x-full lg:translate-x-0 transition-transform"
+    style="background:linear-gradient(180deg,#1e1b4b 0%,#2e1065 100%);border-right:1px solid rgba(255,255,255,0.06)">
 
-    <!-- Logo -->
-    <div class="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-      <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-        <i class="fa-solid fa-bolt text-white text-sm"></i>
-      </div>
+    <!-- Brand -->
+    <div class="flex items-center gap-3 px-4 py-4 border-b" style="border-color:rgba(255,255,255,0.08)">
+      <img src="/static/logo.jpg" alt="VPNTunel" class="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-lg" onerror="this.style.display='none'">
       <div>
-        <div class="font-bold text-sm leading-tight">VPNTunel</div>
-        <div class="text-indigo-300 text-xs">Admin Panel</div>
+        <p class="text-white font-bold text-sm leading-none">VPNTunel</p>
+        <p class="text-violet-400 text-xs mt-0.5 font-semibold uppercase tracking-wider">Super Admin</p>
+      </div>
+    </div>
+
+    <!-- Admin pill -->
+    <div class="mx-3 mt-4 mb-2 rounded-xl px-3 py-2.5" style="background:rgba(255,255,255,0.06)">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-violet-700 flex items-center justify-center">
+          <i class="fa-solid fa-shield-halved text-violet-200 text-xs"></i>
+        </div>
+        <div>
+          <p class="text-white text-xs font-semibold">Administrator</p>
+          <p class="text-violet-400 text-xs">Superadmin</p>
+        </div>
       </div>
     </div>
 
     <!-- Nav -->
-    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-      <p class="text-indigo-400 text-xs font-semibold px-3 mb-2 tracking-widest">MENU</p>
+    <nav class="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
 
-      <a href="/" class="sidebar-link {% if request.url.path == '/' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
-        <i class="fa-solid fa-gauge-high w-5 text-center"></i> Dashboard
-      </a>
-      <a href="/tambah" class="sidebar-link {% if request.url.path == '/tambah' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
-        <i class="fa-solid fa-user-plus w-5 text-center"></i> Tambah Pelanggan
-      </a>
-      <a href="/pelanggan" class="sidebar-link {% if request.url.path == '/pelanggan' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
-        <i class="fa-solid fa-users w-5 text-center"></i> Pelanggan
-      </a>
-      <a href="/tagihan" class="sidebar-link {% if request.url.path == '/tagihan' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
-        <i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Tagihan
+      <a href="/dashboard" class="nav-link">
+        <i class="fa-solid fa-gauge-high w-4 text-center"></i>
+        Dashboard
       </a>
 
-      <p class="text-indigo-400 text-xs font-semibold px-3 mb-2 mt-4 tracking-widest">SERVER</p>
-      <a href="http://127.0.0.1:7500" target="_blank" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
-        <i class="fa-solid fa-server w-5 text-center"></i> FRP Dashboard
-        <i class="fa-solid fa-arrow-up-right-from-square text-xs ml-auto text-indigo-400"></i>
+      <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,0.2)">Tenant ISP</p>
+
+      <a href="/tenant" class="nav-link">
+        <i class="fa-solid fa-building w-4 text-center"></i>
+        Daftar Tenant
       </a>
+
+      <a href="/tenant/tambah" class="nav-link">
+        <i class="fa-solid fa-plus w-4 text-center"></i>
+        Buat Tenant Baru
+      </a>
+
+      <a href="/tenant/billing" class="nav-link">
+        <i class="fa-solid fa-money-bill-trend-up w-4 text-center"></i>
+        Billing &amp; Adjustments
+      </a>
+
+      <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,0.2)">Pendaftaran</p>
+
+      <a href="/registrasi" class="nav-link">
+        <i class="fa-regular fa-file-lines w-4 text-center"></i>
+        Inbox Registrasi
+      </a>
+
+      <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,0.2)">Layanan VPN</p>
+
+      <a href="/vpn/" class="nav-link active">
+        <i class="fa-solid fa-shield-halved w-4 text-center"></i>
+        VPN Tunnel
+      </a>
+      <a href="/vpn/" class="sub-link {% if request.url.path == '/' %}active{% endif %}">
+        <i class="fa-solid fa-gauge-high w-3 text-center"></i> Dashboard VPN
+      </a>
+      <a href="/vpn/pelanggan" class="sub-link {% if request.url.path == '/pelanggan' or request.url.path.startswith('/pelanggan/') %}active{% endif %}">
+        <i class="fa-solid fa-users w-3 text-center"></i> Pelanggan
+      </a>
+      <a href="/vpn/tagihan" class="sub-link {% if request.url.path == '/tagihan' %}active{% endif %}">
+        <i class="fa-solid fa-file-invoice-dollar w-3 text-center"></i> Tagihan
+      </a>
+      <a href="/vpn/tambah" class="sub-link {% if request.url.path == '/tambah' %}active{% endif %}">
+        <i class="fa-solid fa-user-plus w-3 text-center"></i> Tambah Pelanggan
+      </a>
+      <a href="/vpn/servers" class="sub-link {% if request.url.path == '/servers' %}active{% endif %}">
+        <i class="fa-solid fa-server w-3 text-center"></i> Server Tunnel
+      </a>
+      <a href="http://127.0.0.1:7500" target="_blank" class="sub-link">
+        <i class="fa-solid fa-gauge w-3 text-center"></i> FRP Dashboard
+        <i class="fa-solid fa-arrow-up-right-from-square text-[10px] ml-auto"></i>
+      </a>
+
+      <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,0.2)">Keuangan</p>
+
+      <a href="/keuangan?tab=topup" class="nav-link">
+        <i class="fa-solid fa-wallet w-4 text-center"></i>
+        Topup &amp; Tarik
+      </a>
+
+      <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,0.2)">Sistem</p>
+
+      <a href="/wa-gateway" class="nav-link">
+        <i class="fa-brands fa-whatsapp w-4 text-center"></i>
+        WA Gateway
+      </a>
+      <a href="/log-aktivitas" class="nav-link">
+        <i class="fa-solid fa-clipboard-list w-4 text-center"></i>
+        Log Aktivitas
+      </a>
+      <a href="/monitoring" class="nav-link">
+        <i class="fa-solid fa-chart-line w-4 text-center"></i>
+        Monitoring
+      </a>
+
     </nav>
 
-    <!-- User -->
-    <div class="px-4 py-4 border-t border-white/10">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-xs font-bold">A</div>
-          <div>
-            <div class="text-sm font-semibold">Admin</div>
-            <div class="text-indigo-300 text-xs">vpntunel.my.id</div>
-          </div>
-        </div>
-        <a href="/logout" class="text-indigo-300 hover:text-white transition" title="Keluar">
-          <i class="fa-solid fa-right-from-bracket"></i>
-        </a>
-      </div>
+    <div class="px-3 py-3" style="border-top:1px solid rgba(255,255,255,0.06)">
+      <a href="/logout" class="nav-link text-red-400 hover:text-red-300">
+        <i class="fa-solid fa-right-from-bracket w-4 text-center"></i>
+        Keluar
+      </a>
     </div>
   </aside>
 
-  <!-- ════ MAIN ════ -->
-  <div class="flex-1 lg:ml-64 flex flex-col min-h-screen">
+  <!-- Main -->
+  <div class="flex-1 lg:ml-60 flex flex-col min-h-screen">
 
-    <!-- Top bar -->
-    <header class="bg-white border-b border-slate-200 px-4 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 lg:px-8 h-14 flex items-center justify-between shadow-sm">
       <div class="flex items-center gap-3">
-        <!-- Hamburger -->
         <button onclick="toggleSidebar()" class="lg:hidden text-gray-500 hover:text-gray-700">
           <i class="fa-solid fa-bars text-lg"></i>
         </button>
-        <div>
-          <h1 class="text-base font-bold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h1>
-          <p class="text-xs text-gray-400">{% block page_subtitle %}VPNTunel Admin{% endblock %}</p>
+        <div class="flex items-center gap-2 text-sm">
+          <span class="text-gray-400">VPNTunel</span>
+          <span class="text-gray-300">/</span>
+          <span class="text-gray-700 font-medium">{% block page_title %}VPN Tunnel{% endblock %}</span>
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <a href="/tambah" class="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
-          <i class="fa-solid fa-plus"></i> Tambah
-        </a>
-        <div class="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-sm">A</div>
+        <a href="https://billing.vpntunel.my.id" target="_blank" class="text-xs text-gray-400 hover:text-violet-600 transition">billing ↗</a>
       </div>
     </header>
 
     <!-- Content -->
-    <main class="flex-1 px-4 lg:px-8 py-6">
+    <main class="flex-1 p-4 lg:p-8">
       {% block content %}{% endblock %}
     </main>
-
-    <!-- Footer -->
-    <footer class="text-center text-xs text-gray-400 py-4 border-t border-slate-200">
-      VPNTunel Admin Panel &copy; 2024
-    </footer>
   </div>
+</div>
 
-  <!-- Overlay mobile -->
-  <div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/40 z-40 hidden lg:hidden"></div>
+<!-- Mobile overlay -->
+<div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/40 z-20 hidden lg:hidden"></div>
 
 <script>
 function toggleSidebar() {
-  const s = document.getElementById('sidebar');
-  const o = document.getElementById('overlay');
-  s.classList.toggle('-translate-x-full');
-  o.classList.toggle('hidden');
+  document.getElementById('sidebar').classList.toggle('-translate-x-full');
+  document.getElementById('overlay').classList.toggle('hidden');
 }
 </script>
 </body>

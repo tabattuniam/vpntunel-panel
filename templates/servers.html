@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Server Management — VPNTunel{% endblock %}
+{% block page_title %}Server Tunnel{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+  {% if request.query_params.get('ok') %}
+  <div class="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-700 text-sm">
+    <i class="fa-solid fa-circle-check text-lg"></i> Server berhasil ditambahkan.
+  </div>
+  {% endif %}
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="page-title">Server Tunnel</h1>
+      <p class="page-sub">Kelola server FRP multi-region. Skema: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs text-violet-700">*.id1.vpntunel.my.id</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs text-violet-700">*.id2.vpntunel.my.id</code>, dst.</p>
+    </div>
+  </div>
+
+  <!-- Server List -->
+  <div class="card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+      <h2 class="font-semibold text-gray-800 flex items-center gap-2">
+        <i class="fa-solid fa-server text-violet-500"></i> Daftar Server
+      </h2>
+      <span class="badge badge-blue">{{ servers|length }} server</span>
+    </div>
+    <table class="w-full">
+      <thead>
+        <tr>
+          <th class="th">Kode</th>
+          <th class="th">Nama / IP</th>
+          <th class="th">Subdomain Host</th>
+          <th class="th">Port Range</th>
+          <th class="th">Pelanggan</th>
+          <th class="th">Status</th>
+          <th class="th"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in servers %}
+        <tr class="hover:bg-gray-50 transition" id="server-row-{{ s.id }}">
+          <td class="td">
+            <span class="font-bold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-1 rounded-lg text-xs">{{ s.kode }}</span>
+          </td>
+          <td class="td">
+            <p class="font-semibold text-gray-800 text-sm">{{ s.nama }}</p>
+            <p class="text-xs text-gray-400 font-mono">{{ s.ip }}:{{ s.frp_port }}</p>
+          </td>
+          <td class="td">
+            <p class="text-sm font-mono text-gray-700">*.{{ s.subdomain_host }}</p>
+            <p class="text-xs text-gray-400">wildcard DNS diperlukan</p>
+          </td>
+          <td class="td">
+            <p class="text-sm text-gray-700 font-mono">{{ s.port_start }}–{{ s.port_end }}</p>
+          </td>
+          <td class="td">
+            <span class="font-bold text-gray-800">{{ s.jumlah_pelanggan }}</span>
+            <span class="text-gray-400 text-xs ml-1">pelanggan</span>
+          </td>
+          <td class="td">
+            {% if s.status == 'aktif' %}
+            <span class="badge badge-green"><i class="fa-solid fa-circle" style="font-size:6px"></i> Aktif</span>
+            {% else %}
+            <span class="badge badge-gray">Nonaktif</span>
+            {% endif %}
+          </td>
+          <td class="td text-right">
+            {% if s.jumlah_pelanggan == 0 %}
+            <button onclick="hapusServer({{ s.id }}, '{{ s.kode }}')"
+              class="btn btn-danger px-3 py-1.5 text-xs">
+              <i class="fa-solid fa-trash"></i> Hapus
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="td text-center text-gray-400 py-8">
+            <i class="fa-solid fa-server text-3xl mb-2 block text-gray-300"></i>
+            Belum ada server.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- DNS Setup Guide -->
+  <div class="card p-5 bg-blue-50 border-blue-200">
+    <h3 class="font-semibold text-blue-800 flex items-center gap-2 mb-3">
+      <i class="fa-solid fa-circle-info"></i> Cara Setup DNS per Server
+    </h3>
+    <div class="text-sm text-blue-700 space-y-2 font-mono">
+      {% for s in servers %}
+      <div class="bg-white/70 rounded-lg px-3 py-2 border border-blue-100">
+        <p class="font-semibold text-blue-900 mb-1 font-sans">Server {{ s.kode }}</p>
+        <p>{{ s.subdomain_host }}      A    {{ s.ip }}</p>
+        <p>*.{{ s.subdomain_host }}    A    {{ s.ip }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-blue-600 mt-3">Tambahkan 2 record DNS per server: satu untuk hostname, satu wildcard untuk tunnel pelanggan.</p>
+  </div>
+
+  <!-- Tambah Server Form -->
+  <div class="card p-6">
+    <h2 class="font-semibold text-gray-800 mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-plus text-violet-500"></i> Tambah Server Baru
+    </h2>
+    <form method="post" action="/vpn/servers/tambah" class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Kode Server *</label>
+          <input type="text" name="kode" required pattern="[a-z0-9]+"
+            class="form-input" placeholder="id2, sg1, my1, ...">
+          <p class="text-xs text-gray-400 mt-1">Huruf kecil + angka saja. Subdomain: <em>kode</em>.vpntunel.my.id</p>
+        </div>
+        <div>
+          <label class="form-label">Nama Server *</label>
+          <input type="text" name="nama" required
+            class="form-input" placeholder="VPS Indonesia 2">
+        </div>
+        <div>
+          <label class="form-label">IP Address *</label>
+          <input type="text" name="ip" required
+            class="form-input" placeholder="103.x.x.x">
+        </div>
+        <div>
+          <label class="form-label">Port FRP</label>
+          <input type="number" name="frp_port" value="7000"
+            class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Port Mulai</label>
+          <input type="number" name="port_start" value="10000"
+            class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Port Akhir</label>
+          <input type="number" name="port_end" value="20000"
+            class="form-input">
+        </div>
+      </div>
+      <div class="pt-2">
+        <button type="submit" class="btn btn-primary px-6 py-2.5">
+          <i class="fa-solid fa-plus"></i> Tambah Server
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+async function hapusServer(sid, kode) {
+  if (!confirm(`Hapus server ${kode}? Pastikan tidak ada pelanggan aktif.`)) return;
+  const res = await fetch(`/vpn/servers/hapus/${sid}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById(`server-row-${sid}`).remove();
+    alert(`Server ${kode} berhasil dihapus.`);
+  } else {
+    alert(data.msg || 'Gagal menghapus server.');
+  }
+}
+</script>
+{% endblock %}

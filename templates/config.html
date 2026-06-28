@@ -5,9 +5,9 @@
 
 {% block content %}
 <div class="flex items-center gap-2 text-sm text-gray-400 mb-5">
-  <a href="/pelanggan" class="hover:text-indigo-600 transition">Pelanggan</a>
+  <a href="/vpn/pelanggan" class="hover:text-indigo-600 transition">Pelanggan</a>
   <i class="fa-solid fa-chevron-right text-xs"></i>
-  <a href="/pelanggan/{{ p.id }}" class="hover:text-indigo-600 transition">{{ p.nama }}</a>
+  <a href="/vpn/pelanggan/{{ p.id }}" class="hover:text-indigo-600 transition">{{ p.nama }}</a>
   <i class="fa-solid fa-chevron-right text-xs"></i>
   <span class="text-gray-700">Config</span>
 </div>
@@ -42,6 +42,184 @@
     <pre id="script-box" class="bg-slate-900 text-green-400 text-xs p-4 rounded-xl overflow-x-auto leading-relaxed whitespace-pre-wrap">{{ script }}</pre>
   </div>
 
+  <!-- Akses Remote MikroTik -->
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-gray-700 flex items-center gap-2 text-sm">
+        <i class="fa-solid fa-network-wired text-indigo-500"></i> Akses Remote MikroTik
+      </h3>
+      {% if ports %}
+      <a href="/vpn/config/{{ p.id }}/frp.ini" download
+        class="flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-gray-700 px-3 py-1.5 rounded-lg transition font-medium">
+        <i class="fa-solid fa-download"></i> FRP Config
+      </a>
+      {% endif %}
+    </div>
+
+    <div class="p-5 space-y-2">
+
+      <!-- Info ringkas -->
+      {% set srv_host = server.subdomain_host if server else VPN_DOMAIN %}
+      {% set srv_ip   = server.ip if server else '' %}
+      {% set srv_code = server.kode if server else 'id1' %}
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+          <p class="text-xs text-gray-400 mb-0.5">Server</p>
+          <p class="font-mono text-sm font-bold text-gray-800">{{ srv_host }}</p>
+        </div>
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+          <p class="text-xs text-gray-400 mb-0.5">CNAME / Tunnel</p>
+          <p class="font-mono text-sm font-bold text-indigo-700">{{ p.subdomain }}.{{ srv_host }}</p>
+        </div>
+        {% if p.vpn_ip %}
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+          <p class="text-xs text-gray-400 mb-0.5">IP VPN (WireGuard)</p>
+          <p class="font-mono text-sm font-bold text-emerald-700">{{ p.vpn_ip }}</p>
+        </div>
+        {% endif %}
+        {% if ports %}
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+          <p class="text-xs text-gray-400 mb-0.5">Port Range (FRP TCP)</p>
+          <p class="font-mono text-sm font-bold text-violet-700">{{ ports[0] }} – {{ ports[-1] }}</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- L2TP: input IP manual -->
+      {% if (p.protocol or 'wireguard') == 'l2tp' %}
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 items-start mb-3">
+        <i class="fa-solid fa-circle-info text-amber-500 mt-0.5 flex-shrink-0 text-xs"></i>
+        <p class="text-xs text-amber-700">
+          <strong>L2TP — IP Dinamis.</strong> Cek IP MikroTik setelah VPN konek:<br>
+          Terminal: <code class="bg-amber-100 px-1 rounded">/ppp active print</code> · Winbox → PPP → Active
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- Tabel akses port -->
+      {% if ports %}
+      <div class="rounded-xl border border-slate-200 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Port</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Layanan</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Alamat Akses</th>
+              <th class="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% set svc = [
+              (22,   'SSH',    'fa-terminal',    'amber',  'ssh admin@' ~ srv_host ~ ':' ~ (ports[0] if ports|length > 0 else '')),
+              (80,   'WebFig', 'fa-globe',       'violet', 'http://' ~ srv_host ~ ':' ~ (ports[1] if ports|length > 1 else '')),
+              (8291, 'Winbox', 'fa-desktop',     'blue',   srv_host ~ ':' ~ (ports[2] if ports|length > 2 else '')),
+              (8728, 'API',    'fa-code',        'emerald',srv_host ~ ':' ~ (ports[3] if ports|length > 3 else '')),
+            ] %}
+            {% for local_port, label, icon, color, addr in svc %}
+            {% set idx = loop.index0 %}
+            {% if idx < ports|length %}
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-3">
+                <span class="bg-{{ color }}-100 text-{{ color }}-700 text-xs font-bold px-2 py-1 rounded-lg font-mono">{{ local_port }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <i class="fa-solid {{ icon }} text-{{ color }}-500 w-4 text-center"></i>
+                  {{ label }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="font-mono text-sm text-gray-800" id="addr-{{ idx }}">{{ addr }}</span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex items-center gap-1.5 justify-end">
+                  {% if label == 'WebFig' %}
+                  <a href="http://{{ srv_host }}:{{ ports[idx] }}" target="_blank"
+                    class="text-xs bg-{{ color }}-100 hover:bg-{{ color }}-200 text-{{ color }}-700 px-2.5 py-1.5 rounded-lg transition font-medium">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  </a>
+                  {% endif %}
+                  {% if label == 'Winbox' %}
+                  <a href="winbox://{{ srv_host }}:{{ ports[idx] }}"
+                    class="text-xs bg-{{ color }}-100 hover:bg-{{ color }}-200 text-{{ color }}-700 px-2.5 py-1.5 rounded-lg transition font-medium">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  </a>
+                  {% endif %}
+                  <button onclick="copyText(document.getElementById('addr-{{ idx }}').textContent.trim(), this)"
+                    class="text-xs bg-slate-100 hover:bg-slate-200 text-gray-600 px-2.5 py-1.5 rounded-lg transition">
+                    <i class="fa-solid fa-copy"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-gray-400 mt-2 flex items-center gap-1.5">
+        <i class="fa-solid fa-circle-info text-blue-400"></i>
+        Port FRP bisa diakses langsung tanpa VPN, selama MikroTik terhubung ke server.
+      </p>
+
+      {% else %}
+      <!-- Pelanggan lama: belum ada port FRP, tampil akses via VPN IP -->
+      {% if p.vpn_ip %}
+      <div class="rounded-xl border border-slate-200 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Port</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Layanan</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Alamat (via VPN)</th>
+              <th class="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for local_port, label, icon, color, addr in [
+              (22,   'SSH',    'fa-terminal', 'amber',  'ssh admin@' ~ p.vpn_ip),
+              (80,   'WebFig', 'fa-globe',    'violet', 'http://' ~ p.vpn_ip),
+              (8291, 'Winbox', 'fa-desktop',  'blue',   p.vpn_ip),
+              (8728, 'API',    'fa-code',     'emerald', p.vpn_ip ~ ':8728'),
+            ] %}
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-3">
+                <span class="bg-{{ color }}-100 text-{{ color }}-700 text-xs font-bold px-2 py-1 rounded-lg font-mono">{{ local_port }}</span>
+              </td>
+              <td class="px-4 py-3 font-semibold text-gray-700 flex items-center gap-2">
+                <i class="fa-solid {{ icon }} text-{{ color }}-500 w-4 text-center"></i> {{ label }}
+              </td>
+              <td class="px-4 py-3 font-mono text-sm text-gray-800" id="vaddr-{{ loop.index0 }}">{{ addr }}</td>
+              <td class="px-4 py-3 text-right">
+                <button onclick="copyText(document.getElementById('vaddr-{{ loop.index0 }}').textContent.trim(), this)"
+                  class="text-xs bg-slate-100 hover:bg-slate-200 text-gray-600 px-2.5 py-1.5 rounded-lg transition">
+                  <i class="fa-solid fa-copy"></i>
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-amber-600 mt-2 flex items-center gap-1.5">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        Akses via VPN IP — hanya bisa saat WireGuard Online. Daftar ulang untuk mendapat port FRP dedicated.
+      </p>
+      {% else %}
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex gap-2">
+        <i class="fa-solid fa-circle-info mt-0.5"></i>
+        <div>
+          <strong>L2TP — IP Dinamis.</strong> Cek IP MikroTik setelah terhubung:<br>
+          Terminal: <code class="bg-amber-100 px-1 rounded">/ppp active print</code>
+        </div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+    </div>
+  </div>
+
   <button onclick="kirimWA('{{ p.id }}')" id="btn-wa"
     class="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl transition">
     <i class="fa-brands fa-whatsapp"></i> Kirim Script ke WA Pelanggan
@@ -54,10 +232,27 @@ function copyScript() {
   event.currentTarget.innerHTML = '<i class="fa-solid fa-check"></i> Disalin!';
   setTimeout(() => event.currentTarget.innerHTML = '<i class="fa-solid fa-copy"></i> Copy', 2000);
 }
+function copyText(text, btn) {
+  if (!text || text === '—') return;
+  navigator.clipboard.writeText(text);
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-check"></i> Disalin!';
+  setTimeout(() => btn.innerHTML = orig, 2000);
+}
+function updateLinks() {
+  const ip = document.getElementById('ppp-ip')?.value.trim();
+  if (!ip) return;
+  document.getElementById('val-winbox').textContent  = ip;
+  document.getElementById('val-webfig').textContent  = 'http://' + ip;
+  document.getElementById('val-api').textContent     = ip + ':8728';
+  document.getElementById('val-ssh').textContent     = 'ssh admin@' + ip;
+  document.getElementById('btn-open-winbox').href    = 'winbox://' + ip;
+  document.getElementById('btn-open-webfig').href    = 'http://' + ip;
+}
 async function kirimWA(pid) {
   const btn = document.getElementById('btn-wa');
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...';
-  const r = await fetch('/kirim-config/'+pid, {method:'POST'});
+  const r = await fetch('/vpn/kirim-config/'+pid, {method:'POST'});
   const j = await r.json();
   btn.innerHTML = '<i class="fa-brands fa-whatsapp"></i> ' + j.msg;
   setTimeout(() => btn.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Kirim Script ke WA Pelanggan', 3000);

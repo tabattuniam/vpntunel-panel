@@ -1,6 +1,7 @@
 """WireGuard peer manager — add/remove peers dari wg0."""
 from __future__ import annotations
 import subprocess
+import time
 
 
 WG_IFACE    = "wg0"
@@ -35,6 +36,47 @@ def remove_peer(public_key: str):
         check=True
     )
     subprocess.run(["sudo", "wg-quick", "save", WG_IFACE], check=True)
+
+
+def get_peers_status() -> dict[str, dict]:
+    """Parse 'wg show wg0 dump' → {public_key: {online, handshake_ago, endpoint, rx, tx}}."""
+    try:
+        out = subprocess.check_output(
+            ["sudo", "wg", "show", "wg0", "dump"],
+            stderr=subprocess.DEVNULL
+        ).decode()
+        now = int(time.time())
+        peers: dict[str, dict] = {}
+        for line in out.strip().split("\n")[1:]:  # baris pertama = server config
+            parts = line.split("\t")
+            if len(parts) < 7:
+                continue
+            pub_key      = parts[0]
+            endpoint     = parts[2] if parts[2] != "(none)" else None
+            handshake_ts = int(parts[4]) if parts[4].isdigit() else 0
+            rx_bytes     = int(parts[5]) if parts[5].isdigit() else 0
+            tx_bytes     = int(parts[6].rstrip()) if parts[6].strip().isdigit() else 0
+            ago          = now - handshake_ts if handshake_ts else None
+            online       = handshake_ts > 0 and ago is not None and ago < 180
+            peers[pub_key] = {
+                "online":        online,
+                "handshake_ts":  handshake_ts,
+                "handshake_ago": ago,
+                "endpoint":      endpoint,
+                "rx_bytes":      rx_bytes,
+                "tx_bytes":      tx_bytes,
+            }
+        return peers
+    except Exception:
+        return {}
+
+
+def fmt_bytes(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB"
 
 
 def generate_client_script(subdomain: str, private_key: str, vpn_ip: str) -> str:

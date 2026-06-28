@@ -4,7 +4,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import random
+import sqlite3
 import string
+import time
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
@@ -26,13 +28,14 @@ log = logging.getLogger(__name__)
 
 cfg = yaml.safe_load(Path("configs/panel.yaml").read_text())
 
-ADMIN_WA    = cfg["admin_wa"]
-PAKET_LIST  = cfg["paket"]
-DB_PATH     = cfg["db_path"]
-VPN_DOMAIN  = cfg["frp"]["subdomain_host"]
-ADMIN_USER  = cfg["admin"]["username"]
-ADMIN_PASS  = cfg["admin"]["password"]
-SECRET_KEY  = cfg["admin"]["secret_key"]
+ADMIN_WA         = cfg["admin_wa"]
+PAKET_LIST       = cfg["paket"]
+DB_PATH          = cfg["db_path"]
+BILLING_DB_PATH  = cfg.get("billing_db_path", "")
+VPN_DOMAIN       = cfg["frp"]["subdomain_host"]
+ADMIN_USER       = cfg["admin"]["username"]
+ADMIN_PASS       = cfg["admin"]["password"]
+SECRET_KEY       = cfg["admin"]["secret_key"]
 
 signer = TimestampSigner(SECRET_KEY)
 
@@ -92,8 +95,26 @@ def cek_jatuh_tempo():
         log.info("Reminder jatuh tempo: %s", p["nama"])
 
 
+def _seed_servers():
+    """Buat server id1 dari panel.yaml jika tabel servers masih kosong."""
+    if storage.list_servers():
+        return
+    frp = cfg["frp"]
+    storage.create_server(
+        kode="id1",
+        nama="VPS Indonesia 1",
+        ip=frp["server_addr"],
+        frp_port=frp["server_port"],
+        subdomain_host=f"id1.{frp['subdomain_host']}",
+        port_start=frp["port_range_start"],
+        port_end=frp["port_range_end"],
+    )
+    log.info("Server id1 di-seed dari panel.yaml")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _seed_servers()
     scheduler = AsyncIOScheduler()
     scheduler.add_job(cek_jatuh_tempo, "cron", hour=8, minute=0)
     scheduler.start()
@@ -159,8 +180,10 @@ async def dashboard(request: Request, session: str | None = Cookie(default=None)
 async def tambah_form(request: Request, session: str | None = Cookie(default=None)):
     if redir := require_login(session):
         return redir
+    servers = storage.list_servers()
     return templates.TemplateResponse(request=request, name="tambah.html", context={
         "paket_list": PAKET_LIST, "today": date.today().isoformat(),
+        "servers": servers,
     })
 
 
@@ -176,22 +199,31 @@ async def tambah_submit(
     tanggal_bayar: int = Form(...),
     tanggal_mulai: str = Form(...),
     catatan: str = Form(""),
+    server_id: int = Form(0),
 ):
     if redir := require_login(session):
         return redir
+    servers = storage.list_servers()
     subdomain = subdomain.lower().strip().replace(" ", "")
     if storage.subdomain_exists(subdomain):
         return templates.TemplateResponse(request=request, name="tambah.html", context={
-            "paket_list": PAKET_LIST, "today": date.today().isoformat(),
+            "paket_list": PAKET_LIST, "today": date.today().isoformat(), "servers": servers,
             "error": f"Subdomain '{subdomain}' sudah digunakan.",
         })
 
     paket_data = next((p for p in PAKET_LIST if p["name"] == paket), None)
     if not paket_data:
         return templates.TemplateResponse(request=request, name="tambah.html", context={
-            "paket_list": PAKET_LIST, "today": date.today().isoformat(),
+            "paket_list": PAKET_LIST, "today": date.today().isoformat(), "servers": servers,
             "error": "Paket tidak valid.",
         })
+
+    # Pilih server: manual atau auto (yang paling sedikit pelanggannya)
+    if server_id and storage.get_server(server_id):
+        assigned_server = storage.get_server(server_id)
+    else:
+        assigned_server = storage.get_best_server()
+    assigned_server_id = assigned_server["id"] if assigned_server else 1
 
     pin = gen_pin()
     wg_priv = wg_pub = vpn_ip = l2tp_user = l2tp_pass = ""
@@ -207,10 +239,18 @@ async def tambah_submit(
         script = l2tp_manager.generate_client_script(l2tp_user, l2tp_pass)
         script_label = "L2TP/IPSec (semua RouterOS)"
 
+    # Assign 4 FRP TCP ports (SSH, WebFig, Winbox, API)
+    frp_ports: list[int] = []
+    try:
+        frp_ports = storage.get_next_ports(assigned_server_id, 4)
+    except Exception as e:
+        log.warning("Gagal assign FRP ports: %s", e)
+
     pid = storage.create(
-        nama, nomor_wa, subdomain, [], paket, paket_data["harga"],
+        nama, nomor_wa, subdomain, frp_ports, paket, paket_data["harga"],
         tanggal_bayar, tanggal_mulai, catatan, pin, protocol,
-        wg_priv, wg_pub, vpn_ip, l2tp_user, l2tp_pass
+        wg_priv, wg_pub, vpn_ip, l2tp_user, l2tp_pass,
+        server_id=assigned_server_id
     )
 
     if protocol == "wireguard":
@@ -225,11 +265,19 @@ async def tambah_submit(
         wg_priv, wg_pub, vpn_ip, l2tp_user, l2tp_pass
     )
 
+    # Register FRP ports to port_usage
+    if frp_ports:
+        storage.assign_ports(pid, frp_ports, ["ssh", "webfig", "winbox", "api"])
+
+    server_domain = assigned_server["subdomain_host"] if assigned_server else VPN_DOMAIN
+    tunnel_url = f"{subdomain}.{server_domain}"
     wa.send(nomor_wa,
         f"Halo {nama}! 🎉\n\n"
         f"Akun VPN Remote MikroTik Anda telah aktif!\n\n"
         f"📦 Paket: {paket}\n"
         f"🔧 Protokol: {script_label}\n"
+        f"🌐 Server: {server_domain}\n"
+        f"🔗 Tunnel: {tunnel_url}\n"
         f"💰 Tagihan: {format_rupiah(paket_data['harga'])}/bulan\n"
         f"📅 Jatuh tempo: tgl {tanggal_bayar} setiap bulan\n\n"
         f"🔐 *Login Portal:*\n"
@@ -277,6 +325,50 @@ async def tagihan(request: Request, bulan: str = "", session: str | None = Cooki
     })
 
 
+def _gen_frp_conf(p: dict, server: dict, frp_token: str) -> str:
+    """Generate FRP client .ini config untuk pelanggan."""
+    ports = p.get("ports") or []
+    sub   = p["subdomain"]
+    ip    = p.get("vpn_ip") or "192.168.88.1"
+    srv_ip = server["ip"]
+    srv_port = server["frp_port"]
+    lines = [
+        "[common]",
+        f"server_addr = {srv_ip}",
+        f"server_port = {srv_port}",
+        f"token = {frp_token}",
+        "",
+    ]
+    mapping = [("ssh", 22), ("webfig", 80), ("winbox", 8291), ("api", 8728)]
+    for i, (label, local_port) in enumerate(mapping):
+        if i < len(ports):
+            lines += [
+                f"[{label}-{sub}]",
+                "type = tcp",
+                f"local_ip = {ip}",
+                f"local_port = {local_port}",
+                f"remote_port = {ports[i]}",
+                "",
+            ]
+    return "\n".join(lines)
+
+
+@app.get("/config/{pid}/frp.ini")
+async def download_frp_config(pid: str, session: str | None = Cookie(default=None)):
+    if not is_logged_in(session):
+        return RedirectResponse("/login", status_code=302)
+    p = storage.get(pid)
+    if not p:
+        return HTMLResponse("Tidak ditemukan", status_code=404)
+    server = storage.get_server(p.get("server_id") or 1) or {}
+    content = _gen_frp_conf(p, server, cfg["frp"].get("token", ""))
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        content,
+        headers={"Content-Disposition": f'attachment; filename="frpc-{p["subdomain"]}.ini"'}
+    )
+
+
 @app.get("/config/{pid}", response_class=HTMLResponse)
 async def lihat_config(request: Request, pid: str, session: str | None = Cookie(default=None)):
     if redir := require_login(session):
@@ -288,8 +380,10 @@ async def lihat_config(request: Request, pid: str, session: str | None = Cookie(
         script = l2tp_manager.generate_client_script(p["l2tp_user"], p["l2tp_password"])
     else:
         script = wg_manager.generate_client_script(p["subdomain"], p["wg_private_key"], p["vpn_ip"])
+    server = storage.get_server(p.get("server_id") or 1)
+    ports  = p.get("ports") or []
     return templates.TemplateResponse(request=request, name="config.html", context={
-        "p": p, "script": script,
+        "p": p, "script": script, "server": server, "ports": ports,
     })
 
 
@@ -370,10 +464,11 @@ async def detail_pelanggan(request: Request, pid: str, session: str | None = Coo
     riwayat = storage.get_riwayat_bayar(pid)
     bulan = bulan_ini()
     tagihan = storage.get_or_create_tagihan(pid, bulan)
+    server = storage.get_server(p.get("server_id") or 1)
     return templates.TemplateResponse(request=request, name="detail_pelanggan.html", context={
         "p": p, "vpn_connections": vpn_connections, "vpn_limit": vpn_limit,
         "riwayat": riwayat, "bulan": bulan, "tagihan": tagihan,
-        "paket_list": PAKET_LIST,
+        "paket_list": PAKET_LIST, "server": server,
     })
 
 
@@ -543,3 +638,233 @@ async def aktifkan(pid: str):
         storage.update_vpn_connection_status(vc["id"], "aktif")
     storage.update_status(pid, "aktif")
     return {"ok": True}
+
+
+# ── Billing Tenant Manager ────────────────────────────────────────────────────
+
+class BillingDB:
+    """Thin wrapper untuk akses read/write ke database billing-web."""
+
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+
+    def _conn(self):
+        con = sqlite3.connect(self.db_path)
+        con.row_factory = sqlite3.Row
+        return con
+
+    def list_tenants(self) -> list[dict]:
+        con = self._conn()
+        rows = con.execute("SELECT * FROM users WHERE role='admin' ORDER BY nama").fetchall()
+        con.close()
+        return [dict(r) for r in rows]
+
+    def get_tenant(self, uid: str) -> dict | None:
+        con = self._conn()
+        row = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        con.close()
+        return dict(row) if row else None
+
+    def get_tenant_stats(self, uid: str) -> dict:
+        con = self._conn()
+        pppoe   = con.execute("SELECT COUNT(*) FROM pppoe_users WHERE user_id=? AND status='aktif'", (uid,)).fetchone()[0]
+        voucher = con.execute("SELECT COUNT(*) FROM voucher_hotspot WHERE user_id=? AND status='tersedia'", (uid,)).fetchone()[0]
+        omzet   = con.execute("SELECT COALESCE(SUM(amount),0) FROM transaksi WHERE user_id=? AND status='paid'", (uid,)).fetchone()[0]
+        servers = con.execute("SELECT COUNT(*) FROM mikrotik_servers WHERE user_id=?", (uid,)).fetchone()[0]
+        agen    = con.execute("SELECT COUNT(*) FROM users WHERE parent_id=? AND role='agen'", (uid,)).fetchone()[0]
+        con.close()
+        return {"pppoe": pppoe, "voucher": voucher, "omzet": omzet, "servers": servers, "agen": agen}
+
+    def adjust_saldo(self, uid: str, amount: int, catatan: str) -> dict | None:
+        con = self._conn()
+        row = con.execute("SELECT saldo FROM users WHERE id=?", (uid,)).fetchone()
+        if not row:
+            con.close()
+            return None
+        saldo_before = int(row["saldo"])
+        saldo_after  = max(0, saldo_before + amount)
+        con.execute("UPDATE users SET saldo=? WHERE id=?", (saldo_after, uid))
+        con.execute(
+            "INSERT INTO saldo_adjustments (user_id, amount, saldo_before, saldo_after, catatan, by_sa, created_at) VALUES (?,?,?,?,?,1,?)",
+            (uid, amount, saldo_before, saldo_after, catatan, int(time.time()))
+        )
+        con.commit()
+        con.close()
+        return {"saldo_before": saldo_before, "saldo_after": saldo_after}
+
+    def reset_password(self, uid: str, password: str):
+        pw_hash = hashlib.sha256(password.encode()).hexdigest()
+        con = self._conn()
+        con.execute("UPDATE users SET password=? WHERE id=?", (pw_hash, uid))
+        con.commit()
+        con.close()
+
+    def set_status(self, uid: str, status: str):
+        con = self._conn()
+        con.execute("UPDATE users SET status=? WHERE id=?", (status, uid))
+        con.commit()
+        con.close()
+
+    def list_adjustments(self, uid: str = "", limit: int = 50) -> list[dict]:
+        con = self._conn()
+        if uid:
+            rows = con.execute(
+                "SELECT sa.*, u.nama, u.username FROM saldo_adjustments sa LEFT JOIN users u ON u.id=sa.user_id WHERE sa.user_id=? ORDER BY sa.created_at DESC LIMIT ?",
+                (uid, limit)
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT sa.*, u.nama, u.username FROM saldo_adjustments sa LEFT JOIN users u ON u.id=sa.user_id ORDER BY sa.created_at DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+        con.close()
+        return [dict(r) for r in rows]
+
+
+billing_db = BillingDB(BILLING_DB_PATH) if BILLING_DB_PATH else None
+
+
+def _format_rp(n) -> str:
+    try:
+        return f"Rp {int(n):,}".replace(",", ".")
+    except Exception:
+        return str(n)
+
+def _ts_date(ts) -> str:
+    from datetime import datetime
+    try:
+        return datetime.fromtimestamp(int(ts)).strftime("%-d %b %Y %H:%M")
+    except Exception:
+        return str(ts)
+
+
+@app.get("/billing", response_class=HTMLResponse)
+async def billing_dashboard(request: Request, session: str | None = Cookie(None)):
+    redir = require_login(session)
+    if redir:
+        return redir
+    if not billing_db:
+        return HTMLResponse("<h2>billing_db_path belum dikonfigurasi di panel.yaml</h2>", status_code=500)
+    tenants     = billing_db.list_tenants()
+    stats       = {t["id"]: billing_db.get_tenant_stats(t["id"]) for t in tenants}
+    adjustments = billing_db.list_adjustments(limit=30)
+    return templates.TemplateResponse(request, "billing_tenants.html", {
+        "request": request, "tenants": tenants, "stats": stats,
+        "adjustments": adjustments, "format_rp": _format_rp, "ts_date": _ts_date,
+    })
+
+
+@app.post("/billing/tenant/{uid}/adjust-saldo", response_class=JSONResponse)
+async def billing_adjust_saldo(uid: str, amount: int = Form(0), catatan: str = Form(""),
+                                session: str | None = Cookie(None)):
+    if not is_logged_in(session):
+        return JSONResponse({"ok": False, "msg": "Unauthorized"}, status_code=401)
+    if not billing_db or amount == 0:
+        return JSONResponse({"ok": False, "msg": "Jumlah tidak boleh 0"})
+    result = billing_db.adjust_saldo(uid, amount, catatan)
+    if not result:
+        return JSONResponse({"ok": False, "msg": "Tenant tidak ditemukan"})
+    return JSONResponse({"ok": True, "saldo_before": result["saldo_before"], "saldo_after": result["saldo_after"]})
+
+
+@app.post("/billing/tenant/{uid}/reset-password")
+async def billing_reset_password(uid: str, password: str = Form(""),
+                                  session: str | None = Cookie(None)):
+    if not is_logged_in(session):
+        return RedirectResponse("/login", status_code=302)
+    if not billing_db or len(password) < 6:
+        return RedirectResponse("/billing?error=password_terlalu_pendek", status_code=302)
+    billing_db.reset_password(uid, password)
+    return RedirectResponse("/billing?ok=password_direset", status_code=302)
+
+
+@app.post("/billing/tenant/{uid}/status")
+async def billing_toggle_status(uid: str, status: str = Form(""),
+                                 session: str | None = Cookie(None)):
+    if not is_logged_in(session):
+        return RedirectResponse("/login", status_code=302)
+    if not billing_db or status not in ("aktif", "nonaktif"):
+        return RedirectResponse("/billing", status_code=302)
+    billing_db.set_status(uid, status)
+    return RedirectResponse("/billing?ok=status_diubah", status_code=302)
+
+
+@app.get("/billing/tenant/{uid}/adjustments", response_class=JSONResponse)
+async def billing_tenant_adjustments(uid: str, session: str | None = Cookie(None)):
+    if not is_logged_in(session):
+        return JSONResponse({"ok": False}, status_code=401)
+    if not billing_db:
+        return JSONResponse([])
+    rows = billing_db.list_adjustments(uid=uid, limit=50)
+    return JSONResponse(rows)
+
+
+# ── VPN Status Monitor ───────────────────────────────────────────────────────
+
+@app.get("/api/vpn-status", response_class=JSONResponse)
+async def api_vpn_status(session: str | None = Cookie(default=None)):
+    if not is_logged_in(session):
+        return JSONResponse({"ok": False}, status_code=401)
+    wg_peers = wg_manager.get_peers_status()
+    l2tp_active = list(l2tp_manager.get_active_users())
+    return JSONResponse({"ok": True, "wg": wg_peers, "l2tp": l2tp_active})
+
+
+# ── Server Management ─────────────────────────────────────────────────────────
+
+@app.get("/servers", response_class=HTMLResponse)
+async def daftar_servers(request: Request, session: str | None = Cookie(default=None)):
+    if redir := require_login(session):
+        return redir
+    servers = storage.list_servers()
+    for s in servers:
+        s["jumlah_pelanggan"] = storage.count_pelanggan_by_server(s["id"])
+    return templates.TemplateResponse(request=request, name="servers.html", context={
+        "servers": servers,
+    })
+
+
+@app.post("/servers/tambah", response_class=HTMLResponse)
+async def tambah_server(
+    request: Request,
+    session: str | None = Cookie(default=None),
+    kode: str = Form(...),
+    nama: str = Form(...),
+    ip: str = Form(...),
+    frp_port: int = Form(7000),
+    port_start: int = Form(10000),
+    port_end: int = Form(20000),
+):
+    if redir := require_login(session):
+        return redir
+    kode = kode.lower().strip().replace(" ", "")
+    subdomain_host = f"{kode}.vpntunel.my.id"
+    storage.create_server(kode, nama, ip, frp_port, subdomain_host, port_start, port_end)
+    log.info("Server baru ditambah: %s (%s)", kode, ip)
+    return RedirectResponse("/servers?ok=1", status_code=303)
+
+
+@app.post("/servers/hapus/{sid}", response_class=JSONResponse)
+async def hapus_server(sid: int, session: str | None = Cookie(default=None)):
+    if not is_logged_in(session):
+        return JSONResponse({"ok": False}, status_code=401)
+    jumlah = storage.count_pelanggan_by_server(sid)
+    if jumlah > 0:
+        return JSONResponse({"ok": False, "msg": f"Server masih memiliki {jumlah} pelanggan aktif."})
+    storage.delete_server(sid)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/pelanggan/{pid}/pindah-server", response_class=JSONResponse)
+async def pindah_server(pid: str, server_id: int = Form(...),
+                         session: str | None = Cookie(default=None)):
+    if not is_logged_in(session):
+        return JSONResponse({"ok": False}, status_code=401)
+    p = storage.get(pid)
+    if not p:
+        return JSONResponse({"ok": False, "msg": "Pelanggan tidak ditemukan."}, status_code=404)
+    server = storage.get_server(server_id)
+    if not server:
+        return JSONResponse({"ok": False, "msg": "Server tidak ditemukan."})
+    storage.update_pelanggan_server(pid, server_id)
+    return JSONResponse({"ok": True, "msg": f"Pelanggan dipindah ke server {server['kode']}. DNS dan konfigurasi MikroTik perlu diperbarui."})

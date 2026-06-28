@@ -9,7 +9,7 @@
     <div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">❌ {{ error }}</div>
     {% endif %}
 
-    <form method="post" action="/tambah" class="space-y-4">
+    <form method="post" action="/vpn/tambah" class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
         <input type="text" name="nama" required
@@ -25,14 +25,27 @@
       </div>
 
       <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Server *</label>
+        <select name="server_id" id="srv-select" onchange="updateSubdomainHint()"
+          class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          <option value="0">-- Auto (paling sedikit pelanggan) --</option>
+          {% for s in servers %}
+          <option value="{{ s.id }}" data-host="{{ s.subdomain_host }}">{{ s.kode }} — {{ s.nama }} ({{ s.ip }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Subdomain *</label>
         <div class="flex items-center gap-2">
-          <input type="text" name="subdomain" required
+          <input type="text" name="subdomain" required id="subdomain-input"
             class="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            placeholder="namapelanggan">
-          <span class="text-gray-500 text-sm">.{{ FRP_SUBDOMAIN }}</span>
+            placeholder="namapelanggan" oninput="updateSubdomainHint()">
+          <span class="text-gray-500 text-sm" id="domain-suffix">.{{ servers[0].subdomain_host if servers else FRP_SUBDOMAIN }}</span>
         </div>
-        <p class="text-xs text-gray-400 mt-1">Huruf kecil, tanpa spasi. Contoh: toko123</p>
+        <p class="text-xs text-gray-400 mt-1">
+          Tunnel lengkap: <strong id="full-tunnel">namapelanggan.{{ servers[0].subdomain_host if servers else FRP_SUBDOMAIN }}</strong>
+        </p>
       </div>
 
       <div>
@@ -84,4 +97,23 @@
     </form>
   </div>
 </div>
+
+<script>
+const servers = {
+  {% for s in servers %}
+  {{ s.id }}: "{{ s.subdomain_host }}",
+  {% endfor %}
+};
+const defaultHost = "{{ servers[0].subdomain_host if servers else FRP_SUBDOMAIN }}";
+
+function updateSubdomainHint() {
+  const sel = document.getElementById('srv-select');
+  const sid = parseInt(sel.value);
+  const host = (sid && servers[sid]) ? servers[sid] : defaultHost;
+  const sub = document.getElementById('subdomain-input').value || 'namapelanggan';
+  document.getElementById('domain-suffix').textContent = '.' + host;
+  document.getElementById('full-tunnel').textContent = sub + '.' + host;
+}
+updateSubdomainHint();
+</script>
 {% endblock %}

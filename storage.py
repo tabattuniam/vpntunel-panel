@@ -21,6 +21,17 @@ class Storage:
     def _init(self):
         con = self._conn()
         con.executescript("""
+        CREATE TABLE IF NOT EXISTS servers (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            kode            TEXT NOT NULL UNIQUE,
+            nama            TEXT NOT NULL,
+            ip              TEXT NOT NULL,
+            frp_port        INTEGER DEFAULT 7000,
+            subdomain_host  TEXT NOT NULL,
+            port_start      INTEGER DEFAULT 10000,
+            port_end        INTEGER DEFAULT 20000,
+            status          TEXT DEFAULT 'aktif'
+        );
         CREATE TABLE IF NOT EXISTS pelanggan (
             id              TEXT PRIMARY KEY,
             nama            TEXT NOT NULL,
@@ -40,6 +51,7 @@ class Storage:
             vpn_ip          TEXT DEFAULT '',
             l2tp_user       TEXT DEFAULT '',
             l2tp_password   TEXT DEFAULT '',
+            server_id       INTEGER DEFAULT 1,
             created_at      INTEGER,
             updated_at      INTEGER
         );
@@ -91,11 +103,15 @@ class Storage:
 
     def _migrate_columns(self, con):
         """Add new columns to existing tables if missing."""
-        try:
-            con.execute("ALTER TABLE pelanggan ADD COLUMN vpn_limit INTEGER DEFAULT 0")
-            con.commit()
-        except Exception:
-            pass
+        for stmt in [
+            "ALTER TABLE pelanggan ADD COLUMN vpn_limit INTEGER DEFAULT 0",
+            "ALTER TABLE pelanggan ADD COLUMN server_id INTEGER DEFAULT 1",
+        ]:
+            try:
+                con.execute(stmt)
+                con.commit()
+            except Exception:
+                pass
 
     def _migrate_vpn_connections(self, con):
         """Move VPN data already in pelanggan rows into vpn_connections (once)."""
@@ -124,6 +140,21 @@ class Storage:
         con.close()
         return {r["port"] for r in rows}
 
+    def get_next_ports(self, server_id: int, count: int) -> list[int]:
+        """Ambil 'count' port berikutnya yang tersedia di range server."""
+        server = self.get_server(server_id)
+        if not server:
+            raise ValueError("Server tidak ditemukan")
+        used = self.get_used_ports()
+        result = []
+        for port in range(server["port_start"], server["port_end"] + 1):
+            if port not in used:
+                result.append(port)
+                used.add(port)
+                if len(result) == count:
+                    return result
+        raise ValueError(f"Port range penuh ({server['port_start']}-{server['port_end']})")
+
     def assign_ports(self, pelanggan_id: str, ports: list[int], labels: list[str] = None):
         con = self._conn()
         for i, port in enumerate(ports):
@@ -143,7 +174,7 @@ class Storage:
                tanggal_bayar, tanggal_mulai, catatan="", pin="",
                protocol="wireguard",
                wg_private_key="", wg_public_key="", vpn_ip="",
-               l2tp_user="", l2tp_password="") -> str:
+               l2tp_user="", l2tp_password="", server_id: int = 1) -> str:
         pid = uuid.uuid4().hex[:8].upper()
         now = int(time.time())
         con = self._conn()
@@ -152,12 +183,12 @@ class Storage:
                (id,nama,nomor_wa,subdomain,ports,paket,harga,
                 tanggal_bayar,tanggal_mulai,catatan,pin,protocol,
                 wg_private_key,wg_public_key,vpn_ip,
-                l2tp_user,l2tp_password,created_at,updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                l2tp_user,l2tp_password,server_id,created_at,updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (pid, nama, nomor_wa, subdomain, json.dumps(ports), paket, harga,
              int(tanggal_bayar), tanggal_mulai, catatan, pin, protocol,
              wg_private_key, wg_public_key, vpn_ip,
-             l2tp_user, l2tp_password, now, now)
+             l2tp_user, l2tp_password, server_id, now, now)
         )
         con.commit()
         con.close()
@@ -456,6 +487,67 @@ class Storage:
         d = dict(row)
         d["metadata"] = json.loads(d["metadata"])
         return d
+
+    # ── Servers ───────────────────────────────────────────────────────────────
+
+    def list_servers(self) -> list[dict]:
+        con = self._conn()
+        rows = con.execute("SELECT * FROM servers ORDER BY id").fetchall()
+        con.close()
+        return [dict(r) for r in rows]
+
+    def get_server(self, sid: int) -> dict | None:
+        con = self._conn()
+        row = con.execute("SELECT * FROM servers WHERE id=?", (sid,)).fetchone()
+        con.close()
+        return dict(row) if row else None
+
+    def get_server_by_kode(self, kode: str) -> dict | None:
+        con = self._conn()
+        row = con.execute("SELECT * FROM servers WHERE kode=?", (kode,)).fetchone()
+        con.close()
+        return dict(row) if row else None
+
+    def create_server(self, kode: str, nama: str, ip: str, frp_port: int,
+                      subdomain_host: str, port_start: int, port_end: int) -> int:
+        con = self._conn()
+        cur = con.execute(
+            "INSERT INTO servers (kode,nama,ip,frp_port,subdomain_host,port_start,port_end,status) "
+            "VALUES (?,?,?,?,?,?,?,'aktif')",
+            (kode, nama, ip, frp_port, subdomain_host, port_start, port_end)
+        )
+        con.commit()
+        sid = cur.lastrowid
+        con.close()
+        return sid
+
+    def delete_server(self, sid: int):
+        con = self._conn()
+        con.execute("DELETE FROM servers WHERE id=?", (sid,))
+        con.commit()
+        con.close()
+
+    def count_pelanggan_by_server(self, sid: int) -> int:
+        con = self._conn()
+        n = con.execute(
+            "SELECT COUNT(*) FROM pelanggan WHERE server_id=? AND status='aktif'", (sid,)
+        ).fetchone()[0]
+        con.close()
+        return n
+
+    def get_best_server(self) -> dict | None:
+        """Pilih server aktif dengan jumlah pelanggan paling sedikit."""
+        servers = [s for s in self.list_servers() if s["status"] == "aktif"]
+        if not servers:
+            return None
+        return min(servers, key=lambda s: self.count_pelanggan_by_server(s["id"]))
+
+    def update_pelanggan_server(self, pid: str, server_id: int):
+        con = self._conn()
+        con.execute("UPDATE pelanggan SET server_id=?,updated_at=? WHERE id=?",
+                    (server_id, int(time.time()), pid))
+        con.commit()
+        con.close()
 
     def update_paket(self, pid: str, paket: str, harga: int, vpn_limit: int):
         con = self._conn()

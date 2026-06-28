@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% block title %}Billing Tenant — VPNTunel{% endblock %}
+{% block page_title %}Billing Tenant{% endblock %}
+{% block page_subtitle %}Manajemen ISP tenant billing.vpntunel.my.id{% endblock %}
+
+{% block content %}
+
+{% if request.query_params.get('ok') %}
+<div class="mb-4 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">
+  {% if request.query_params.get('ok') == 'password_direset' %}Password tenant berhasil direset.
+  {% elif request.query_params.get('ok') == 'status_diubah' %}Status tenant berhasil diubah.
+  {% else %}Berhasil.{% endif %}
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+  Error: {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<!-- Stat Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+    <p class="text-xs text-slate-400 mb-1">Total Tenant</p>
+    <p class="text-2xl font-bold text-slate-800">{{ tenants|length }}</p>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+    <p class="text-xs text-slate-400 mb-1">Tenant Aktif</p>
+    <p class="text-2xl font-bold text-green-600">{{ tenants|selectattr('status','eq','aktif')|list|length }}</p>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+    <p class="text-xs text-slate-400 mb-1">Total Saldo</p>
+    <p class="text-lg font-bold text-indigo-600">{{ format_rp(tenants|sum(attribute='saldo')) }}</p>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+    <p class="text-xs text-slate-400 mb-1">Penyesuaian</p>
+    <p class="text-2xl font-bold text-yellow-600">{{ adjustments|length }}</p>
+  </div>
+</div>
+
+<!-- Tab Buttons -->
+<div class="flex gap-2 mb-4">
+  <button onclick="showTab('tenant')" id="tab-btn-tenant"
+    class="tab-btn px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium">
+    Daftar Tenant
+  </button>
+  <button onclick="showTab('riwayat')" id="tab-btn-riwayat"
+    class="tab-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200">
+    Riwayat Penyesuaian Saldo
+  </button>
+</div>
+
+<!-- Tab Tenant -->
+<div id="tab-tenant" class="space-y-4">
+  {% for t in tenants %}
+  {% set s = stats[t.id] %}
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <!-- Header -->
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+      <div>
+        <div class="flex items-center gap-2 mb-0.5">
+          <span class="font-bold text-slate-800 text-lg">{{ t.nama }}</span>
+          {% if t.status == 'aktif' %}
+          <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 border border-green-200">Aktif</span>
+          {% else %}
+          <span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 border border-red-200">Nonaktif</span>
+          {% endif %}
+        </div>
+        <p class="text-slate-400 text-sm">@{{ t.username }} · {{ t.nomor_wa or '-' }}</p>
+        <p class="text-slate-400 text-xs">slug: {{ t.slug or '-' }}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-slate-400">Saldo</p>
+        <p class="text-xl font-bold text-indigo-600">{{ format_rp(t.saldo) }}</p>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-3 md:grid-cols-5 gap-2 mb-4">
+      <div class="bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+        <p class="text-xs text-slate-400">PPPoE</p>
+        <p class="font-bold text-slate-700">{{ s.pppoe }}</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+        <p class="text-xs text-slate-400">Voucher</p>
+        <p class="font-bold text-slate-700">{{ s.voucher }}</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+        <p class="text-xs text-slate-400">MikroTik</p>
+        <p class="font-bold text-slate-700">{{ s.servers }}</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+        <p class="text-xs text-slate-400">Agen</p>
+        <p class="font-bold text-slate-700">{{ s.agen }}</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+        <p class="text-xs text-slate-400">Omzet</p>
+        <p class="font-bold text-green-600 text-xs">{{ format_rp(s.omzet) }}</p>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-wrap gap-2">
+      <button onclick="bukaModalAdjust('{{ t.id }}','{{ t.nama }}')"
+        class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition">
+        <i class="fa-solid fa-wallet mr-1"></i> Atur Saldo
+      </button>
+      <button onclick="bukaModalResetPw('{{ t.id }}','{{ t.nama }}')"
+        class="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded-lg transition">
+        <i class="fa-solid fa-key mr-1"></i> Reset Password
+      </button>
+      {% if t.status == 'aktif' %}
+      <form method="POST" action="/vpn/billing/tenant/{{ t.id }}/status"
+            onsubmit="return confirm('Nonaktifkan tenant {{ t.nama }}?')">
+        <input type="hidden" name="status" value="nonaktif">
+        <button type="submit"
+          class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition">
+          <i class="fa-solid fa-ban mr-1"></i> Nonaktifkan
+        </button>
+      </form>
+      {% else %}
+      <form method="POST" action="/vpn/billing/tenant/{{ t.id }}/status">
+        <input type="hidden" name="status" value="aktif">
+        <button type="submit"
+          class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition">
+          <i class="fa-solid fa-circle-check mr-1"></i> Aktifkan
+        </button>
+      </form>
+      {% endif %}
+      <button onclick="lihatRiwayatTenant('{{ t.id }}','{{ t.nama }}')"
+        class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-lg transition">
+        <i class="fa-solid fa-clock-rotate-left mr-1"></i> Riwayat Saldo
+      </button>
+      <a href="https://billing.vpntunel.my.id/dashboard" target="_blank"
+        class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-lg transition">
+        <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i> Buka Billing
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+    Belum ada tenant terdaftar.
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Tab Riwayat -->
+<div id="tab-riwayat" class="hidden">
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-slate-50 text-slate-500 text-left border-b border-slate-200">
+          <th class="px-4 py-3">Tenant</th>
+          <th class="px-4 py-3">Jumlah</th>
+          <th class="px-4 py-3">Sebelum</th>
+          <th class="px-4 py-3">Sesudah</th>
+          <th class="px-4 py-3">Catatan</th>
+          <th class="px-4 py-3">Waktu</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for a in adjustments %}
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-3">
+            <p class="font-medium text-slate-800">{{ a.nama or '-' }}</p>
+            <p class="text-slate-400 text-xs">@{{ a.username or '-' }}</p>
+          </td>
+          <td class="px-4 py-3">
+            <span class="font-bold {{ 'text-green-600' if a.amount > 0 else 'text-red-600' }}">
+              {{ '+' if a.amount > 0 else '' }}{{ format_rp(a.amount) }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-slate-600">{{ format_rp(a.saldo_before) }}</td>
+          <td class="px-4 py-3 text-slate-600">{{ format_rp(a.saldo_after) }}</td>
+          <td class="px-4 py-3 text-slate-400">{{ a.catatan or '-' }}</td>
+          <td class="px-4 py-3 text-slate-400 text-xs">{{ ts_date(a.created_at) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Belum ada riwayat penyesuaian.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- Modal: Atur Saldo -->
+<div id="modal-adjust" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+    <h3 class="font-bold text-slate-800 text-lg mb-1">Atur Saldo Tenant</h3>
+    <p class="text-slate-400 text-sm mb-4" id="adj-nama"></p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">Jenis</label>
+        <select id="adj-type"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:border-indigo-500">
+          <option value="tambah">Tambah Saldo</option>
+          <option value="kurangi">Kurangi Saldo</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">Nominal (Rp)</label>
+        <input type="number" id="adj-amount" min="1" placeholder="Contoh: 50000"
+               class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:border-indigo-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1">Catatan</label>
+        <input type="text" id="adj-catatan" placeholder="Alasan penyesuaian..."
+               class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:border-indigo-500">
+      </div>
+    </div>
+    <div class="flex gap-3 mt-5">
+      <button onclick="simpanAdjust()"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition">
+        Simpan
+      </button>
+      <button onclick="tutupModalAdjust()"
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl transition">
+        Batal
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reset Password -->
+<div id="modal-resetpw" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+    <h3 class="font-bold text-slate-800 text-lg mb-1">Reset Password Tenant</h3>
+    <p class="text-slate-400 text-sm mb-4" id="rpw-nama"></p>
+    <form id="form-resetpw" method="POST">
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-600 mb-1">Password Baru (min 6 karakter)</label>
+        <input type="text" name="password" minlength="6" required placeholder="Password baru..."
+               class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:border-yellow-500">
+      </div>
+      <div class="flex gap-3">
+        <button type="submit"
+                class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2.5 rounded-xl transition">
+          Reset Password
+        </button>
+        <button type="button" onclick="tutupModalResetPw()"
+                class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl transition">
+          Batal
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Riwayat per Tenant -->
+<div id="modal-riwayat" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-xl max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-slate-800 text-lg">Riwayat Saldo — <span id="rw-nama"></span></h3>
+      <button onclick="tutupModalRiwayat()" class="text-slate-400 hover:text-slate-700 text-xl">✕</button>
+    </div>
+    <div id="rw-body" class="overflow-auto flex-1 text-sm text-slate-500">Memuat...</div>
+  </div>
+</div>
+
+<script>
+let adjUid = '';
+
+function showTab(name) {
+  ['tenant','riwayat'].forEach(t => {
+    document.getElementById('tab-' + t).classList.add('hidden');
+    const btn = document.getElementById('tab-btn-' + t);
+    btn.classList.remove('bg-indigo-600','text-white');
+    btn.classList.add('bg-slate-100','text-slate-600');
+  });
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  const active = document.getElementById('tab-btn-' + name);
+  active.classList.remove('bg-slate-100','text-slate-600');
+  active.classList.add('bg-indigo-600','text-white');
+}
+
+function bukaModalAdjust(uid, nama) {
+  adjUid = uid;
+  document.getElementById('adj-nama').textContent = nama;
+  document.getElementById('adj-amount').value = '';
+  document.getElementById('adj-catatan').value = '';
+  document.getElementById('adj-type').value = 'tambah';
+  document.getElementById('modal-adjust').classList.remove('hidden');
+}
+
+function tutupModalAdjust() { document.getElementById('modal-adjust').classList.add('hidden'); }
+
+async function simpanAdjust() {
+  const type    = document.getElementById('adj-type').value;
+  const amount  = parseInt(document.getElementById('adj-amount').value);
+  const catatan = document.getElementById('adj-catatan').value.trim();
+  if (!amount || amount <= 0) { alert('Masukkan nominal yang valid'); return; }
+  const final = type === 'kurangi' ? -amount : amount;
+  const fd = new FormData();
+  fd.append('amount', final);
+  fd.append('catatan', catatan || (type === 'tambah' ? 'Tambah saldo' : 'Kurangi saldo'));
+  const res  = await fetch('/vpn/billing/tenant/' + adjUid + '/adjust-saldo', { method: 'POST', body: fd });
+  const data = await res.json();
+  tutupModalAdjust();
+  if (data.ok) {
+    alert('Saldo berhasil diatur.\nSebelum: Rp ' + data.saldo_before.toLocaleString('id-ID') + '\nSesudah: Rp ' + data.saldo_after.toLocaleString('id-ID'));
+    location.reload();
+  } else {
+    alert(data.msg || 'Gagal');
+  }
+}
+
+function bukaModalResetPw(uid, nama) {
+  document.getElementById('rpw-nama').textContent = nama;
+  document.getElementById('form-resetpw').action = '/billing/tenant/' + uid + '/reset-password';
+  document.getElementById('modal-resetpw').classList.remove('hidden');
+}
+function tutupModalResetPw() { document.getElementById('modal-resetpw').classList.add('hidden'); }
+
+async function lihatRiwayatTenant(uid, nama) {
+  document.getElementById('rw-nama').textContent = nama;
+  document.getElementById('rw-body').innerHTML = 'Memuat...';
+  document.getElementById('modal-riwayat').classList.remove('hidden');
+  const res  = await fetch('/vpn/billing/tenant/' + uid + '/adjustments');
+  const rows = await res.json();
+  if (!rows.length) {
+    document.getElementById('rw-body').innerHTML = 'Belum ada riwayat penyesuaian saldo.';
+    return;
+  }
+  let html = '<table class="w-full"><thead><tr class="text-slate-400 border-b">'
+    + '<th class="py-2 pr-4 text-left">Jumlah</th><th class="py-2 pr-4 text-left">Sebelum</th>'
+    + '<th class="py-2 pr-4 text-left">Sesudah</th><th class="py-2 pr-4 text-left">Catatan</th>'
+    + '<th class="py-2 text-left">Waktu</th></tr></thead><tbody class="divide-y divide-slate-100">';
+  for (const a of rows) {
+    const sign  = a.amount > 0 ? '+' : '';
+    const color = a.amount > 0 ? 'text-green-600' : 'text-red-600';
+    const tgl   = new Date(a.created_at * 1000).toLocaleString('id-ID');
+    html += `<tr>
+      <td class="py-2 pr-4 font-bold ${color}">${sign}Rp ${Math.abs(a.amount).toLocaleString('id-ID')}</td>
+      <td class="py-2 pr-4 text-slate-600">Rp ${a.saldo_before.toLocaleString('id-ID')}</td>
+      <td class="py-2 pr-4 text-slate-600">Rp ${a.saldo_after.toLocaleString('id-ID')}</td>
+      <td class="py-2 pr-4 text-slate-400">${a.catatan || '-'}</td>
+      <td class="py-2 text-slate-400 text-xs">${tgl}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('rw-body').innerHTML = html;
+}
+
+function tutupModalRiwayat() { document.getElementById('modal-riwayat').classList.add('hidden'); }
+</script>
+
+{% endblock %}

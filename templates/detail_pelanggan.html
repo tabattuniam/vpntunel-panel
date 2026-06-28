@@ -7,7 +7,7 @@
 
 <!-- Breadcrumb -->
 <div class="flex items-center gap-2 text-sm text-gray-400 mb-5">
-  <a href="/pelanggan" class="hover:text-indigo-600 transition">Pelanggan</a>
+  <a href="/vpn/pelanggan" class="hover:text-indigo-600 transition">Pelanggan</a>
   <i class="fa-solid fa-chevron-right text-xs"></i>
   <span class="text-gray-700 font-medium">{{ p.nama }}</span>
 </div>
@@ -74,6 +74,21 @@
           {% endif %}
         </div>
       </div>
+
+      <!-- Server Info -->
+      {% if server %}
+      <div class="px-5 py-3 bg-violet-50 border-t border-violet-100 flex items-center gap-3">
+        <i class="fa-solid fa-server text-violet-500 text-sm"></i>
+        <div class="flex-1">
+          <span class="text-xs text-violet-700 font-semibold">Server: </span>
+          <span class="text-xs font-bold text-violet-800 bg-violet-100 border border-violet-200 px-2 py-0.5 rounded-lg">{{ server.kode }}</span>
+          <span class="text-xs text-violet-600 ml-2">{{ server.nama }} — {{ server.ip }}</span>
+        </div>
+        <div class="text-xs font-mono text-violet-700">
+          {{ p.subdomain }}.{{ server.subdomain_host }}
+        </div>
+      </div>
+      {% endif %}
     </div>
 
     <!-- ── VPN Connections ───────────────────────────────────────────── -->
@@ -99,16 +114,22 @@
 
       <div class="divide-y divide-slate-100" id="vpn-list">
         {% for vc in vpn_connections %}
-        <div class="px-5 py-4" id="vpn-row-{{ vc.id }}">
+        <div class="px-5 py-4" id="vpn-row-{{ vc.id }}"
+          data-vid="{{ vc.id }}"
+          data-protocol="{{ vc.protocol }}"
+          data-wgkey="{{ vc.wg_public_key or '' }}"
+          data-l2tpuser="{{ vc.l2tp_user or '' }}">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 relative
                 {% if vc.protocol == 'wireguard' %}bg-purple-100{% else %}bg-blue-100{% endif %}">
                 {% if vc.protocol == 'wireguard' %}
                 <i class="fa-solid fa-shield-halved text-purple-600"></i>
                 {% else %}
                 <i class="fa-solid fa-lock text-blue-600"></i>
                 {% endif %}
+                <!-- Live dot -->
+                <span class="vpn-live-dot-{{ vc.id }} absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white bg-gray-300"></span>
               </div>
               <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -123,12 +144,18 @@
                   {% else %}
                   <span class="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">nonaktif</span>
                   {% endif %}
+                  <!-- Live status badge -->
+                  <span class="vpn-status-inline-{{ vc.id }} text-xs text-gray-300">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size:8px"></i>
+                  </span>
                 </div>
                 {% if vc.protocol == 'wireguard' %}
                 <p class="text-xs text-gray-400 mt-0.5 font-mono">IP: {{ vc.vpn_ip }}</p>
                 {% else %}
                 <p class="text-xs text-gray-400 mt-0.5 font-mono">User: {{ vc.l2tp_user }}</p>
                 {% endif %}
+                <!-- Live detail info -->
+                <p class="vpn-detail-{{ vc.id }} text-xs text-gray-400 mt-0.5 hidden font-mono"></p>
               </div>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -206,7 +233,7 @@
       <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
         <i class="fa-solid fa-pen-to-square text-indigo-500"></i> Edit Data Pelanggan
       </h3>
-      <form method="post" action="/edit/{{ p.id }}" class="space-y-4">
+      <form method="post" action="/vpn/edit/{{ p.id }}" class="space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1.5">Nama Lengkap</label>
@@ -439,7 +466,7 @@ async function ubahPaket(pid) {
   const fd = new FormData();
   fd.append('paket', paket);
   fd.append('harga_custom', hargaCustom);
-  const r = await fetch('/ubah-paket/' + pid, { method: 'POST', body: fd });
+  const r = await fetch('/vpn/ubah-paket/' + pid, { method: 'POST', body: fd });
   const j = await r.json();
   btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan Paket';
   btn.disabled = false;
@@ -487,7 +514,7 @@ async function submitAddVpn(pid) {
   const fd = new FormData();
   fd.append('label', label);
   fd.append('protocol', protocol);
-  const r = await fetch('/tambah-vpn/'+pid, {method:'POST', body:fd});
+  const r = await fetch('/vpn/tambah-vpn/'+pid, {method:'POST', body:fd});
   const j = await r.json();
   btn.disabled = false;
   if (j.ok) {
@@ -522,14 +549,14 @@ function copyScriptVpn(vid) {
 }
 
 async function kirimWAVpn(vid) {
-  const r = await fetch('/kirim-config-vpn/'+vid, {method:'POST'});
+  const r = await fetch('/vpn/kirim-config-vpn/'+vid, {method:'POST'});
   const j = await r.json();
   alert(j.ok ? '✅ ' + j.msg : '❌ ' + j.msg);
 }
 
 async function hapusVpn(vid, label) {
   if (!confirm('Hapus koneksi "'+label+'"? Pelanggan tidak bisa menggunakan koneksi ini lagi.')) return;
-  const r = await fetch('/hapus-vpn/'+vid, {method:'POST'});
+  const r = await fetch('/vpn/hapus-vpn/'+vid, {method:'POST'});
   const j = await r.json();
   if (j.ok) {
     document.getElementById('vpn-row-'+vid).remove();
@@ -540,7 +567,7 @@ async function hapusVpn(vid, label) {
 
 async function resetPin(pid) {
   if (!confirm('Reset PIN dan kirim ke WA pelanggan?')) return;
-  const r = await fetch('/reset-pin/'+pid, {method:'POST'});
+  const r = await fetch('/vpn/reset-pin/'+pid, {method:'POST'});
   const j = await r.json();
   if (j.ok) { document.getElementById('pin-val').textContent = j.pin; alert(j.msg); }
 }
@@ -548,16 +575,16 @@ async function resetPin(pid) {
 async function bayarSekarang(pid, bulan) {
   if (!confirm('Tandai lunas bulan ' + bulan + '?')) return;
   const fd = new FormData(); fd.append('bulan', bulan);
-  const r = await fetch('/bayar/'+pid, {method:'POST', body:fd});
+  const r = await fetch('/vpn/bayar/'+pid, {method:'POST', body:fd});
   if ((await r.json()).ok) location.reload();
 }
 
 async function nonaktif(pid) {
   if (!confirm('Nonaktifkan semua koneksi VPN pelanggan ini?')) return;
-  await fetch('/nonaktif/'+pid, {method:'POST'}); location.reload();
+  await fetch('/vpn/nonaktif/'+pid, {method:'POST'}); location.reload();
 }
 async function aktifkan(pid) {
-  await fetch('/aktifkan/'+pid, {method:'POST'}); location.reload();
+  await fetch('/vpn/aktifkan/'+pid, {method:'POST'}); location.reload();
 }
 
 async function setBilling(vid) {
@@ -566,7 +593,7 @@ async function setBilling(vid) {
   const fd = new FormData();
   fd.append('billing_subdomain', subdomain);
   fd.append('billing_port', port);
-  const r = await fetch('/set-billing/'+vid, {method:'POST', body:fd});
+  const r = await fetch('/vpn/set-billing/'+vid, {method:'POST', body:fd});
   const j = await r.json();
   if (j.ok) {
     alert(subdomain
@@ -577,5 +604,88 @@ async function setBilling(vid) {
     alert('❌ ' + j.msg);
   }
 }
+
+// ── VPN Live Monitor ─────────────────────────────────────────────────────────
+function fmtAgo(s) {
+  if (!s && s !== 0) return '';
+  if (s < 60)   return s + ' detik lalu';
+  if (s < 3600) return Math.floor(s/60) + ' menit lalu';
+  if (s < 86400) return Math.floor(s/3600) + ' jam lalu';
+  return Math.floor(s/86400) + ' hari lalu';
+}
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n/1048576).toFixed(1) + ' MB';
+  return (n/1073741824).toFixed(2) + ' GB';
+}
+
+async function loadVpnStatus() {
+  try {
+    const res = await fetch('/vpn/api/vpn-status');
+    if (!res.ok) return;
+    const data = await res.json();
+    const wg   = data.wg   || {};
+    const l2tp = data.l2tp || [];
+
+    document.querySelectorAll('[data-vid]').forEach(row => {
+      const vid      = row.dataset.vid;
+      const proto    = row.dataset.protocol;
+      const wgKey    = row.dataset.wgkey;
+      const l2User   = row.dataset.l2tpuser;
+      const dot      = document.querySelector(`.vpn-live-dot-${vid}`);
+      const badge    = document.querySelector(`.vpn-status-inline-${vid}`);
+      const detail   = document.querySelector(`.vpn-detail-${vid}`);
+
+      let online = false;
+      let detailText = '';
+
+      if (proto === 'wireguard' && wgKey && wg[wgKey] !== undefined) {
+        const peer = wg[wgKey];
+        online = peer.online;
+        if (online) {
+          detailText = `Handshake: ${fmtAgo(peer.handshake_ago)} · ↓${fmtBytes(peer.rx_bytes)} ↑${fmtBytes(peer.tx_bytes)}` +
+            (peer.endpoint ? ` · IP: ${peer.endpoint.split(':')[0]}` : '');
+        } else {
+          detailText = peer.handshake_ts
+            ? `Terakhir terhubung: ${fmtAgo(peer.handshake_ago)}`
+            : 'Belum pernah terhubung';
+        }
+      } else if (proto === 'l2tp' && l2User) {
+        online = l2tp.includes(l2User);
+        detailText = online ? 'Terhubung' : 'Tidak ada sesi aktif';
+      } else {
+        // No data
+        if (dot) dot.className = dot.className.replace(/bg-\w+-\d+/, 'bg-gray-300');
+        if (badge) badge.innerHTML = '';
+        return;
+      }
+
+      if (dot) {
+        dot.className = dot.className.replace(/bg-\w+-\d+/, online ? 'bg-emerald-400' : 'bg-slate-300');
+        if (online) dot.style.animation = 'vpnPulse 2s infinite';
+        else dot.style.animation = '';
+      }
+      if (badge) {
+        badge.innerHTML = online
+          ? '<span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full"><i class="fa-solid fa-wifi text-xs"></i> Online</span>'
+          : '<span class="inline-flex items-center gap-1 bg-slate-100 text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full"><i class="fa-solid fa-wifi-slash text-xs opacity-50"></i> Offline</span>';
+      }
+      if (detail && detailText) {
+        detail.textContent = detailText;
+        detail.classList.remove('hidden');
+      }
+    });
+  } catch(e) {}
+}
+
+loadVpnStatus();
+setInterval(loadVpnStatus, 30000);
 </script>
+<style>
+@keyframes vpnPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
+}
+</style>
 {% endblock %}

@@ -120,13 +120,13 @@
       <i class="fa-solid fa-bolt text-amber-500"></i> Aksi Cepat
     </h3>
     <div class="space-y-2">
-      <a href="/tambah" class="flex items-center gap-3 p-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition text-sm font-medium text-indigo-700">
+      <a href="/vpn/tambah" class="flex items-center gap-3 p-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition text-sm font-medium text-indigo-700">
         <i class="fa-solid fa-user-plus w-5 text-center"></i> Tambah Pelanggan Baru
       </a>
-      <a href="/pelanggan" class="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition text-sm font-medium text-gray-700">
+      <a href="/vpn/pelanggan" class="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition text-sm font-medium text-gray-700">
         <i class="fa-solid fa-users w-5 text-center text-gray-500"></i> Kelola Pelanggan
       </a>
-      <a href="/tagihan" class="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition text-sm font-medium text-emerald-700">
+      <a href="/vpn/tagihan" class="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition text-sm font-medium text-emerald-700">
         <i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Tagihan Bulan Ini
       </a>
     </div>
@@ -183,7 +183,7 @@
       <h3 class="font-bold text-gray-700 flex items-center gap-2">
         <i class="fa-solid fa-user-clock text-indigo-500"></i> Pelanggan Terbaru
       </h3>
-      <a href="/pelanggan" class="text-xs text-indigo-600 hover:underline">Lihat semua →</a>
+      <a href="/vpn/pelanggan" class="text-xs text-indigo-600 hover:underline">Lihat semua →</a>
     </div>
     {% if stats.recent %}
     <div class="divide-y divide-slate-100">
@@ -218,7 +218,7 @@
 async function bayarCepat(pid, bulan) {
   if (!confirm('Tandai lunas ' + bulan + '?')) return;
   const fd = new FormData(); fd.append('bulan', bulan);
-  const r = await fetch('/bayar/' + pid, {method: 'POST', body: fd});
+  const r = await fetch('/vpn/bayar/' + pid, {method: 'POST', body: fd});
   const j = await r.json();
   if (j.ok) location.reload(); else alert(j.msg);
 }

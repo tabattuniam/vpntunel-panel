@@ -11,7 +11,7 @@
     <p class="text-sm font-semibold text-gray-700">Periode Tagihan</p>
     <p class="text-xs text-gray-400">Bulan: <span class="font-mono font-bold text-indigo-600">{{ bulan }}</span></p>
   </div>
-  <form method="get" action="/tagihan" class="flex items-center gap-2">
+  <form method="get" action="/vpn/tagihan" class="flex items-center gap-2">
     <input type="month" name="bulan" value="{{ bulan }}"
       class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition">
@@ -124,7 +124,7 @@
 async function bayar(pid, bulan) {
   if (!confirm('Tandai lunas ' + bulan + '?')) return;
   const fd = new FormData(); fd.append('bulan', bulan);
-  const r = await fetch('/bayar/'+pid, {method:'POST', body:fd});
+  const r = await fetch('/vpn/bayar/'+pid, {method:'POST', body:fd});
   const j = await r.json();
   if (j.ok) location.reload(); else alert(j.msg);
 }
